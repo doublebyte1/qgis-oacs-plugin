@@ -5,6 +5,7 @@ from qgis.PyQt import QtCore
 from qgis.PyQt import QtGui
 from qgis.PyQt import QtWidgets
 
+from ..constants import IconPath
 from .data_source_widget import OacsDataSourceWidget
 
 
@@ -22,7 +23,7 @@ class OacsSourceSelectProvider(qgis.gui.QgsSourceSelectProvider):
         return "qgis_oacs_provider"
 
     def icon(self):
-        return QtGui.QIcon(":/plugins/qgis_oacs/graph_3.svg")
+        return QtGui.QIcon(IconPath.main_logo)
 
     def text(self):
         return "OGC API - Connected Systems"

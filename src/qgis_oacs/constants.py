@@ -3,6 +3,7 @@ import dataclasses
 
 @dataclasses.dataclass(frozen=True)
 class IconPath:
+    main_logo = ":/plugins/qgis_oacs/graph_3.svg"
     search = ":/plugins/qgis_oacs/search.svg"
     system = ":/plugins/qgis_oacs/manufacturing.svg"
     sampling_feature = ":/plugins/qgis_oacs/lab_panel.svg"
