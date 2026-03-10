@@ -9,8 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Add support for Procedure items
+- Add resource description to renderable properties
 
 ### Fixed
+- Fix 'q' search parameter being sent when empty
+- Add support to GeoJSON geometries with more than two coordinates per point
 - Scroll bar resizes correctly when number of list items changes
 
 

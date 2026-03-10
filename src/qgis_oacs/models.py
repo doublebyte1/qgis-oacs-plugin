@@ -306,9 +306,11 @@ class OacsItem(abc.ABC):
     def from_api_response(cls, response_content: dict) -> "OacsItem": ...
 
     def get_renderable_properties(self) -> dict[str, str]:
-        return {
+        properties = {
             "Name": self.name,
+            "Description": self.description or None
         }
+        return {k: v for k, v in properties.items() if v is not None}
 
     def get_relevant_links(self) -> list[Link]:
         return []
@@ -324,11 +326,12 @@ class OacsFeature(OacsItem, abc.ABC):
     additional_properties: dict[str, str] | None = None
 
     def get_renderable_properties(self) -> dict[str, str]:
-        return {
-            "Name": self.name,
+        properties = {
+            **super().get_renderable_properties(),
             "UID": self.uid,
             **{k.capitalize(): str(v) for k, v in self.additional_properties.items()}
         }
+        return {k: v for k, v in properties.items() if v is not None}
 
     @staticmethod
     def _parse_api_response(
@@ -401,12 +404,13 @@ class System(OacsFeature):
         )
 
     def get_renderable_properties(self) -> dict[str, str]:
-        return {
+        properties = {
             **super().get_renderable_properties(),
             "Feature Type": self.feature_type.name.upper(),
             "Asset Type": self.asset_type.name.upper() if self.asset_type else "Unknown",
             "Valid Time": self.valid_time.as_renderable_property() if self.valid_time else "Unknown",
         }
+        return {k: v for k, v in properties.items() if v is not None}
 
     def get_relevant_links(self) -> list[Link]:
         # we look for both `rel=<name>` and `rel=ogc-rel:<name>` because of:
@@ -470,11 +474,12 @@ class Deployment(OacsFeature):
         )
 
     def get_renderable_properties(self) -> dict[str, str]:
-        return {
+        properties = {
             **super().get_renderable_properties(),
             "Feature Type": (self.feature_type or "deployment").upper(),
             "Valid Time": self.valid_time.as_renderable_property() if self.valid_time else "Unknown",
         }
+        return {k: v for k, v in properties if v is not None}
 
     def get_relevant_links(self) -> list[Link]:
         relevant_link_rels = (
@@ -526,11 +531,12 @@ class SamplingFeature(OacsFeature):
         )
 
     def get_renderable_properties(self) -> dict[str, str]:
-        return {
+        properties = {
             **super().get_renderable_properties(),
             "Feature Type": (self.feature_type or "sampling_feature").upper(),
             "Valid Time": self.valid_time.as_renderable_property() if self.valid_time else "Unknown",
         }
+        return {k: v for k, v in properties.items() if v is not None}
 
     def get_relevant_links(self) -> list[Link]:
         relevant_link_rels = (
@@ -556,7 +562,7 @@ class SamplingFeature(OacsFeature):
 class Procedure(OacsFeature):
     geometry: None
     feature_type: ProcedureType
-    valid_time: TimePeriod
+    valid_time: TimePeriod | None
 
     @classmethod
     def from_api_response(cls, response_content: dict) -> "Procedure":
@@ -582,11 +588,12 @@ class Procedure(OacsFeature):
         )
 
     def get_renderable_properties(self) -> dict[str, str]:
-        return {
+        properties = {
             **super().get_renderable_properties(),
             "Feature Type": self.feature_type.name.upper(),
-            "Valid Time": self.valid_time.as_renderable_property(),
+            "Valid Time": self.valid_time.as_renderable_property() if self.valid_time else "Unknown",
         }
+        return {k: v for k, v in properties.items() if v is not None}
 
     def get_relevant_links(self) -> list[Link]:
         relevant_link_rels = ()
@@ -707,10 +714,11 @@ class DataStream(OacsItem):
         )
 
     def get_renderable_properties(self) -> dict[str, str]:
-        return {
+        properties = {
             "Name": self.name,
             "Formats": ", ".join(format_ for format_ in self.formats),
         }
+        return {k: v for k, v in properties.items() if v is not None}
 
     def get_relevant_links(self) -> list[Link]:
         return []

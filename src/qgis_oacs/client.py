@@ -58,7 +58,7 @@ class OacsClient(QtCore.QObject):
     ) -> OacsRequestMetadata:
         query = {
             "f": "geojson" if connection.use_f_query_param else None,
-            "q": q_filter,
+            "q": q_filter or None,
         }
         meta = OacsRequestMetadata(request_type=RequestType.SYSTEM_LIST)
         self.dispatch_network_request(

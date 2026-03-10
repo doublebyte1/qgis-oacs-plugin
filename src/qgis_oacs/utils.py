@@ -161,11 +161,17 @@ def load_oacs_feature_list_as_layers(
     # - features that have geometry may have different geometry types
     feats_to_render = {
         qgis.core.Qgis.WkbType.Point: [],
+        qgis.core.Qgis.WkbType.PointZ: [],
         qgis.core.Qgis.WkbType.MultiPoint: [],
+        qgis.core.Qgis.WkbType.MultiPointZ: [],
         qgis.core.Qgis.WkbType.LineString: [],
+        qgis.core.Qgis.WkbType.LineStringZ: [],
         qgis.core.Qgis.WkbType.MultiLineString: [],
+        qgis.core.Qgis.WkbType.MultiLineStringZ: [],
         qgis.core.Qgis.WkbType.Polygon: [],
+        qgis.core.Qgis.WkbType.PolygonZ: [],
         qgis.core.Qgis.WkbType.MultiPolygon: [],
+        qgis.core.Qgis.WkbType.MultiPolygonZ: [],
         None: [],
     }
     for oacs_feat in oacs_feature_list.items:
