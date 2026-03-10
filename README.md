@@ -25,7 +25,9 @@ The following are known OACS servers:
   verification in order to use it.
 - https://api.georobotix.io/ogc/demo1/api/systems - the [opensensorhub docs] claim this is a good demo server 
   for OACS - seems to be down though (responds with HTTP 502)
-
+- https://os4csapi-osh.duckdns.org/sensorhub/api - it contains tons of data for systems, deployments and other resources - it is protected by
+  auth (credentials supplied offline)
+  
 [opensensorhub docs]: https://docs.opensensorhub.org/docs/osh-connect/connected-systems#hands-on-guide-and-examples
 
 
