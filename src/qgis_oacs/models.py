@@ -50,6 +50,12 @@ class SystemType(enum.Enum):
             self.SYSTEM: IconPath.system_type_system,
         }.get(self, IconPath.system_type_system)
 
+    def to_search_query_params(self) -> list[str]:
+        return [
+                f"sosa:{self.value.capitalize()}",
+                f"http://www.w3.org/ns/sos/{self.value.capitalize()}",
+        ]
+
 
 class AssetType(enum.Enum):
     EQUIPMENT = "equipment"
@@ -366,7 +372,8 @@ class OacsFeature(OacsItem, abc.ABC):
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
 class System(OacsFeature):
-    feature_type: SystemType | None
+    feature_type: SystemType
+    # feature_type: SystemType | None
     asset_type: AssetType | None
     valid_time: TimePeriod
     system_kind_link: Link

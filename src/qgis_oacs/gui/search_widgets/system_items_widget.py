@@ -7,6 +7,7 @@ from qgis.PyQt.uic import loadUiType
 from ... import models
 from ...client import oacs_client
 from ...settings import settings_manager
+from ...utils import log_message
 from .. import list_item_widgets
 from .base import OacsFeatureSearchWidgetBase
 
@@ -22,12 +23,18 @@ class SearchSystemItemsWidget(
     advanced_filters_gb: QtWidgets.QGroupBox
     property_name_le: QtWidgets.QLineEdit
     property_value_le: QtWidgets.QLineEdit
+    system_type_cb: QtWidgets.QComboBox
 
     def __init__(
             self,
             parent: QtWidgets.QWidget=None
     ) -> None:
         super().__init__(parent)
+        self.system_type_cb.insertItem(0, "")
+        for idx, type_ in enumerate(models.SystemType):
+            self.system_type_cb.insertItem(
+                idx+1, type_.value, type_
+            )
         oacs_client.system_list_fetched.connect(self.handle_search_response)
 
     def _get_interactive_widgets(self) -> tuple[QtWidgets.QWidget, ...]:
@@ -41,7 +48,8 @@ class SearchSystemItemsWidget(
         connection = settings_manager.get_current_data_source_connection()
         oacs_client.initiate_system_list_search(
             connection,
-            q_filter=self.free_text_le.text()
+            q_filter=self.free_text_le.text(),
+            system_type=[st] if (st:=self.system_type_cb.currentData()) else None
         )
 
     def _get_display_widget(self, item: models.OacsFeature) -> QtWidgets.QWidget:

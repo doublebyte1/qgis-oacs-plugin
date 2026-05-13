@@ -4,6 +4,7 @@ import functools
 import json
 import typing
 import uuid
+from itertools import chain
 
 import qgis.core
 from qgis.PyQt import (
@@ -54,11 +55,22 @@ class OacsClient(QtCore.QObject):
     def initiate_system_list_search(
             self,
             connection: settings.DataSourceConnectionSettings,
-            q_filter: str | None = None
+            q_filter: str | None = None,
+            system_type: list[models.SystemType] | None = None,
+            parent_system_ids: list[str] | None = None,
+            implements_any_procedure_ids: list[str] | None = None,
+            connected_to_any_feature_of_interest_ids: list[str] | None = None,
+            observes_any_property_ids: list[str] | None = None,
+            controls_any_property_ids: list[str] | None = None,
     ) -> OacsRequestMetadata:
         query = {
             "f": "geojson" if connection.use_f_query_param else None,
             "q": q_filter or None,
+            "featureType": (
+                list(chain.from_iterable(t.to_search_query_params() for t in system_type))
+                if system_type is not None
+                else None
+            )
         }
         meta = OacsRequestMetadata(request_type=RequestType.SYSTEM_LIST)
         self.dispatch_network_request(
@@ -74,7 +86,6 @@ class OacsClient(QtCore.QObject):
             task_metadata=meta,
             response_handler=functools.partial(
                 self.handle_network_response,
-                #parser=models.SystemList.from_api_response,
                 parser=models.SystemList.from_api_response,
                 to_emit=self.system_list_fetched,
             )
@@ -448,8 +459,14 @@ class OacsClient(QtCore.QObject):
         query_items = {
             **(search_params.query or {})
         }
+        log_message(f"{list(query_items.items())}")
         if len(query_items) > 0:
-            request_query.setQueryItems(list(query_items.items()))
+            for k, v in query_items.items():
+                if isinstance(v, list):
+                    for i in v:
+                        request_query.addQueryItem(k, i)
+                else:
+                    request_query.addQueryItem(k, v)
         if search_params.url_or_relative_path.startswith("/"):
             request_url = QtCore.QUrl(
                 f"{connection.base_url}{search_params.url_or_relative_path}")
