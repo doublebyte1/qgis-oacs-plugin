@@ -17,11 +17,18 @@ from ..client import (
 )
 from ..settings import settings_manager
 from .data_source_connection_dialog import DataSourceConnectionDialog
-from .search_widgets.datastream_items_widget import SearchDataStreamItemsWidget
-from .search_widgets.deployment_items_widget import SearchDeploymentItemsWidget
-from .search_widgets.procedure_items_widget import SearchProcedureItemsWidget
-from .search_widgets.sampling_feature_items_widget import SearchSamplingFeatureItemsWidget
-from .search_widgets.system_items_widget import SearchSystemItemsWidget
+# from .search_widgets.datastream_items_widget import SearchDataStreamItemsWidget
+# from .search_widgets.deployment_items_widget import SearchDeploymentItemsWidget
+# from .search_widgets.procedure_items_widget import SearchProcedureItemsWidget
+# from .search_widgets.sampling_feature_items_widget import SearchSamplingFeatureItemsWidget
+# from .search_widgets.system_items_widget import SearchSystemItemsWidget
+from .search_widgets.system_tree_widget import SearchSystemTreeWidget
+from .search_widgets.resource_tree_widgets import (
+    SearchDeploymentTreeWidget,
+    SearchSamplingFeatureTreeWidget,
+    SearchProcedureTreeWidget,
+    SearchDataStreamTreeWidget,
+)
 
 DataSourceWidgetUi, _ = loadUiType(Path(__file__).parents[1] / "ui/data_source_widget.ui")
 
@@ -59,11 +66,16 @@ class OacsDataSourceWidget(qgis.gui.QgsAbstractDataSourceWidget, DataSourceWidge
         self.layout().insertLayout(4, self.grid_layout)
 
         self.resource_type_pages = {
-            "systems": SearchSystemItemsWidget(),
-            "deployments": SearchDeploymentItemsWidget(),
-            "sampling features": SearchSamplingFeatureItemsWidget(),
-            "procedures": SearchProcedureItemsWidget(),
-            "datastreams": SearchDataStreamItemsWidget(),
+            # "systems": SearchSystemItemsWidget(),
+            "systems": SearchSystemTreeWidget(),
+            # "deployments": SearchDeploymentItemsWidget(),
+            "deployments": SearchDeploymentTreeWidget(),
+            # "sampling features": SearchSamplingFeatureItemsWidget(),
+            "sampling features": SearchSamplingFeatureTreeWidget(),
+            # "procedures": SearchProcedureItemsWidget(),
+            "procedures": SearchProcedureTreeWidget(),
+            # "datastreams": SearchDataStreamItemsWidget(),
+            "datastreams": SearchDataStreamTreeWidget(),
         }
         self.resource_types_tw.clear()
         for name, page in self.resource_type_pages.items():

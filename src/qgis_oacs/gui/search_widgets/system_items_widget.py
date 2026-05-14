@@ -1,13 +1,15 @@
 import typing
 from pathlib import Path
 
-from qgis.PyQt import QtWidgets
+from qgis.PyQt import (
+    QtGui,
+    QtWidgets,
+)
 from qgis.PyQt.uic import loadUiType
 
 from ... import models
 from ...client import oacs_client
 from ...settings import settings_manager
-from ...utils import log_message
 from .. import list_item_widgets
 from .base import OacsFeatureSearchWidgetBase
 
@@ -30,10 +32,11 @@ class SearchSystemItemsWidget(
             parent: QtWidgets.QWidget=None
     ) -> None:
         super().__init__(parent)
-        self.system_type_cb.insertItem(0, "")
+        self.system_type_cb.addItem("All types", None)
         for idx, type_ in enumerate(models.SystemType):
-            self.system_type_cb.insertItem(
-                idx+1, type_.value, type_
+            self.system_type_cb.addItem(
+                QtGui.QIcon(type_.get_icon_path()),
+                type_.value.upper(), type_
             )
         oacs_client.system_list_fetched.connect(self.handle_search_response)
 

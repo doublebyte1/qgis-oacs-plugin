@@ -53,7 +53,7 @@ class SystemType(enum.Enum):
     def to_search_query_params(self) -> list[str]:
         return [
                 f"sosa:{self.value.capitalize()}",
-                f"http://www.w3.org/ns/sos/{self.value.capitalize()}",
+                f"http://www.w3.org/ns/sosa/{self.value.capitalize()}",
         ]
 
 
@@ -139,24 +139,24 @@ class ProcedureType(enum.Enum):
 
 @dataclasses.dataclass(frozen=True)
 class TimePeriod:
-    start: typing.Literal["now"] | dt.datetime
-    end: typing.Literal["now"] | dt.datetime
+    start: dt.datetime | None
+    end: dt.datetime | None
 
     @classmethod
     def from_api_response(cls, value: typing.Sequence[str]) -> "TimePeriod":
         return cls(
             start=(
                 parse_raw_rfc3339_datetime(raw_start)
-                if (raw_start := value[0]) != "now" else raw_start
+                if (raw_start := value[0]) not in ("..", "now") else None
             ),
             end=(
                 parse_raw_rfc3339_datetime(raw_end)
-                if (raw_end := value[1]) != "now" else raw_end
+                if (raw_end := value[1]) not in ("..", "now") else None
             ),
         )
 
     def as_renderable_property(self) -> str:
-        return f"{self.start} to {self.end}"
+        return f"{self.start or ''} to {self.end or ''}"
 
 
 @dataclasses.dataclass(frozen=True)
@@ -307,6 +307,8 @@ class OacsItem(abc.ABC):
     name: str
     description: str | None = None
 
+    collection_path: typing.ClassVar[str]
+
     @classmethod
     @abc.abstractmethod
     def from_api_response(cls, response_content: dict) -> "OacsItem": ...
@@ -320,6 +322,9 @@ class OacsItem(abc.ABC):
 
     def get_relevant_links(self) -> list[Link]:
         return []
+
+    def get_detail_url(self, base_url: str) -> str:
+        return f"{base_url.rstrip('/')}{self.collection_path}/{self.id_}"
 
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
@@ -335,7 +340,8 @@ class OacsFeature(OacsItem, abc.ABC):
         properties = {
             **super().get_renderable_properties(),
             "UID": self.uid,
-            **{k.capitalize(): str(v) for k, v in self.additional_properties.items()}
+            **({} if self.additional_properties is None
+               else {k.capitalize(): str(v) for k, v in self.additional_properties.items()}),
         }
         return {k: v for k, v in properties.items() if v is not None}
 
@@ -372,6 +378,7 @@ class OacsFeature(OacsItem, abc.ABC):
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
 class System(OacsFeature):
+    collection_path: typing.ClassVar[str] = "/systems"
     feature_type: SystemType
     # feature_type: SystemType | None
     asset_type: AssetType | None
@@ -444,6 +451,7 @@ class System(OacsFeature):
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
 class Deployment(OacsFeature):
+    collection_path: typing.ClassVar[str] = "/deployments"
     valid_time: TimePeriod
     platform_link: Link | None = None
     deployed_systems_link: list[Link] | None = None
@@ -514,6 +522,7 @@ class Deployment(OacsFeature):
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
 class SamplingFeature(OacsFeature):
+    collection_path: typing.ClassVar[str] = "/samplingFeatures"
     valid_time: TimePeriod
     sampled_feature_link: Link
 
@@ -567,6 +576,7 @@ class SamplingFeature(OacsFeature):
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
 class Procedure(OacsFeature):
+    collection_path: typing.ClassVar[str] = "/procedures"
     geometry: None
     feature_type: ProcedureType
     valid_time: TimePeriod | None
@@ -657,6 +667,7 @@ class DataStreamObservedProperty:
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
 class DataStream(OacsItem):
+    collection_path: typing.ClassVar[str] = "/datastreams"
     formats: list[str]
     system_link: Link
     observed_properties: list[DataStreamObservedProperty] | None = None
