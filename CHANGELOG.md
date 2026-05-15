@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+
+## [0.1.0] - 2026-05-15
+
 ### Added
 - Add support for Procedure items
 - Add resource description to renderable properties
@@ -45,6 +48,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 [unreleased]: https://github.com/byteroad/qgis-oacs-plugin
+[0.1.0]: https://github.com/byteroad/qgis-oacs-plugin/compare/v0.1.0...main
 [0.0.4]: https://github.com/byteroad/qgis-oacs-plugin/compare/v0.0.4...main
 [0.0.3]: https://github.com/byteroad/qgis-oacs-plugin/compare/v0.0.3...main
 [0.0.2]: https://github.com/byteroad/qgis-oacs-plugin/compare/v0.0.2...main
