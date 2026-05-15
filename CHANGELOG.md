@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Add support for Procedure items
 - Add resource description to renderable properties
+- Add panel for browsing a resource's relationships after loading
+- Add panel for simple visualization of observations
 
 ### Fixed
 - Fix 'q' search parameter being sent when empty
