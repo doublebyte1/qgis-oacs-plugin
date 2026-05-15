@@ -17,11 +17,6 @@ from ..client import (
 )
 from ..settings import settings_manager
 from .data_source_connection_dialog import DataSourceConnectionDialog
-# from .search_widgets.datastream_items_widget import SearchDataStreamItemsWidget
-# from .search_widgets.deployment_items_widget import SearchDeploymentItemsWidget
-# from .search_widgets.procedure_items_widget import SearchProcedureItemsWidget
-# from .search_widgets.sampling_feature_items_widget import SearchSamplingFeatureItemsWidget
-# from .search_widgets.system_items_widget import SearchSystemItemsWidget
 from .search_widgets.system_tree_widget import SearchSystemTreeWidget
 from .search_widgets.resource_tree_widgets import (
     SearchDeploymentTreeWidget,
