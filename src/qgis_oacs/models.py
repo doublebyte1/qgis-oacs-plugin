@@ -613,7 +613,14 @@ class Procedure(OacsFeature):
         return {k: v for k, v in properties.items() if v is not None}
 
     def get_relevant_links(self) -> list[Link]:
-        relevant_link_rels = ()
+        relevant_link_rels = (
+            LinkRelation.implementing_systems,
+            OgcLinkRelation.implementing_systems,
+        )
+        # we look for both `rel=<name>` and `rel=ogc-rel:<name>` because of:
+        #
+        # https://github.com/opengeospatial/ogcapi-connected-systems/issues/173
+        #
         return [link for link in self.links if link.rel in relevant_link_rels]
 
 
@@ -685,6 +692,7 @@ class DataStream(OacsItem):
     feature_of_interest_link: Link | None = None
     sampling_feature_link: Link | None = None
     schema: ObservationSchemaJson | None = None
+    links: list[Link] = dataclasses.field(default_factory=list)
 
     @classmethod
     def from_api_response(cls, response_content: dict) -> "DataStream":
@@ -692,7 +700,8 @@ class DataStream(OacsItem):
             id_=response_content["id"],
             name=response_content["name"],
             formats=response_content["formats"],
-            system_link=Link.from_api_response(response_content["system@link"]),
+            system_link=Link.from_api_response(
+                {"rel": LinkRelation.system, **response_content["system@link"]}),
             observed_properties=[
                 DataStreamObservedProperty.from_api_response(prop)
                 for prop in raw_observed_props
@@ -713,22 +722,26 @@ class DataStream(OacsItem):
             result_time_interval=response_content.get("resultTimeInterval"),
             output_name=response_content.get("outputName"),
             procedure_link=(
-                Link.from_api_response(procedure_raw_link)
+                Link.from_api_response({"rel": LinkRelation.procedure, **procedure_raw_link})
                 if (procedure_raw_link := response_content.get("procedure@link")) else None
             ),
             deployment_link=(
-                Link.from_api_response(deployment_raw_link)
+                Link.from_api_response({"rel": LinkRelation.deployment, **deployment_raw_link})
                 if (deployment_raw_link := response_content.get("deployment@link")) else None
             ),
             feature_of_interest_link=(
-                Link.from_api_response(foi_raw_link)
+                Link.from_api_response({"rel": LinkRelation.feature_of_interest, **foi_raw_link})
                 if (foi_raw_link := response_content.get("featureOfInterest@link")) else None
             ),
             sampling_feature_link=(
-                Link.from_api_response(sampling_feat_raw_link)
+                Link.from_api_response({"rel": LinkRelation.sampling_feature, **sampling_feat_raw_link})
                 if (sampling_feat_raw_link := response_content.get("samplingFeature@link")) else None
             ),
             schema=None,
+            links=[
+                Link.from_api_response(raw_link)
+                for raw_link in response_content.get("links", [])
+            ],
         )
 
     def get_renderable_properties(self) -> dict[str, str]:
@@ -739,7 +752,20 @@ class DataStream(OacsItem):
         return {k: v for k, v in properties.items() if v is not None}
 
     def get_relevant_links(self) -> list[Link]:
-        return []
+        observation_link_rels = (
+            LinkRelation.observations,
+            OgcLinkRelation.observations,
+        )
+        return [
+            link for link in (
+                self.system_link,
+                self.procedure_link,
+                self.deployment_link,
+                self.sampling_feature_link,
+                self.feature_of_interest_link,
+            )
+            if link is not None
+        ] + [link for link in self.links if link.rel in observation_link_rels]
 
 
 ItemType = typing.TypeVar("ItemType", bound=OacsItem)

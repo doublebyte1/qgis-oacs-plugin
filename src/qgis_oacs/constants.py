@@ -34,34 +34,54 @@ class IconPath:
 #
 @dataclasses.dataclass(frozen=True)
 class LinkRelation:
-    control_streams = "controlstreams"
+    # singular resource links (used in @link inline properties)
+    deployment = "deployment"
+    feature_of_interest = "featureOfInterest"
+    procedure = "procedure"
+    sampling_feature = "samplingFeature"
+    system = "system"
+    # collection / association links (used in the links[] array)
+    control_streams = "controlStreams"
     data_streams = "datastreams"
-    deployments = "deployments"
     deployed_systems = "deployedSystems"
+    deployments = "deployments"
     features_of_interest = "featuresOfInterest"
-    procedures = "procedures"
+    implementing_systems = "implementingSystems"
+    observations = "observations"
+    parent_deployment = "parentDeployment"
     parent_system = "parentSystem"
     platform = "platform"
+    procedures = "procedures"
     sampled_feature = "sampledFeature"
     sample_of = "sampleOf"
     sampling_features = "samplingFeatures"
-    sub_deployments = "subDeployments"
+    sub_deployments = "subdeployments"
     sub_systems = "subsystems"
 
 
 @dataclasses.dataclass(frozen=True)
 class OgcLinkRelation:
-    control_streams = "ogc-rel:controlstreams"
+    # singular resource links (used in @link inline properties)
+    deployment = "ogc-rel:deployment"
+    feature_of_interest = "ogc-rel:featureOfInterest"
+    procedure = "ogc-rel:procedure"
+    sampling_feature = "ogc-rel:samplingFeature"
+    system = "ogc-rel:system"
+    # collection / association links (used in the links[] array)
+    control_streams = "ogc-rel:controlStreams"
     data_streams = "ogc-rel:datastreams"
+    deployed_systems = "ogc-rel:deployedSystems"
     deployments = "ogc-rel:deployments"
-    deployed_systems = "deployedSystems"
-    features_of_interest = "featuresOfInterest"
-    procedures = "ogc-rel:procedures"
+    features_of_interest = "ogc-rel:featuresOfInterest"
+    implementing_systems = "ogc-rel:implementingSystems"
+    observations = "ogc-rel:observations"
+    parent_deployment = "ogc-rel:parentDeployment"
     parent_system = "ogc-rel:parentSystem"
     platform = "ogc-rel:platform"
+    procedures = "ogc-rel:procedures"
     sampled_feature = "ogc-rel:sampledFeature"
     sample_of = "ogc-rel:sampleOf"
     sampling_features = "ogc-rel:samplingFeatures"
-    sub_deployments = "ogc-rel:subDeployments"
+    sub_deployments = "ogc-rel:subdeployments"
     sub_systems = "ogc-rel:subsystems"
 

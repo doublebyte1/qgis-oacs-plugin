@@ -32,7 +32,6 @@ class SearchSystemTreeWidget(OacsResourceTreeWidgetBase):
 
     def _connect_type_signals(self) -> None:
         oacs_client.system_list_fetched.connect(self._on_resource_list_fetched)
-        oacs_client.system_item_fetched.connect(self._on_resource_item_fetched)
 
     def _initiate_search(self) -> None:
         connection = settings_manager.get_current_data_source_connection()

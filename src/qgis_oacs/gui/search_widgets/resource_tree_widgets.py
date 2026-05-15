@@ -34,14 +34,32 @@ _DETAILS_FETCHED_ROLE = QtCore.Qt.UserRole + 1
 _LINK_ROLE = QtCore.Qt.UserRole + 2
 
 _LINK_REL_TO_ICON: dict[str, str] = {
+    # singular resource links
+    LinkRelation.system: IconPath.system_type_system,
+    OgcLinkRelation.system: IconPath.system_type_system,
+    LinkRelation.procedure: IconPath.procedure_type_procedure,
+    OgcLinkRelation.procedure: IconPath.procedure_type_procedure,
+    LinkRelation.deployment: IconPath.deployment,
+    OgcLinkRelation.deployment: IconPath.deployment,
+    LinkRelation.sampling_feature: IconPath.sampling_feature,
+    OgcLinkRelation.sampling_feature: IconPath.sampling_feature,
+    # collection / association links
+    LinkRelation.implementing_systems: IconPath.system_type_system,
+    OgcLinkRelation.implementing_systems: IconPath.system_type_system,
     LinkRelation.data_streams: IconPath.datastream,
     OgcLinkRelation.data_streams: IconPath.datastream,
     LinkRelation.control_streams: IconPath.datastream,
     OgcLinkRelation.control_streams: IconPath.datastream,
+    LinkRelation.observations: IconPath.datastream_type_observation,
+    OgcLinkRelation.observations: IconPath.datastream_type_observation,
     LinkRelation.sampling_features: IconPath.sampling_feature,
     OgcLinkRelation.sampling_features: IconPath.sampling_feature,
     LinkRelation.deployments: IconPath.deployment,
     OgcLinkRelation.deployments: IconPath.deployment,
+    LinkRelation.sub_deployments: IconPath.deployment,
+    OgcLinkRelation.sub_deployments: IconPath.deployment,
+    LinkRelation.parent_deployment: IconPath.deployment,
+    OgcLinkRelation.parent_deployment: IconPath.deployment,
     LinkRelation.deployed_systems: IconPath.system_type_system,
     OgcLinkRelation.deployed_systems: IconPath.system_type_system,
     LinkRelation.procedures: IconPath.procedure_type_procedure,
@@ -52,6 +70,8 @@ _LINK_REL_TO_ICON: dict[str, str] = {
     OgcLinkRelation.parent_system: IconPath.system_type_system,
     LinkRelation.sampled_feature: IconPath.sampling_feature,
     OgcLinkRelation.sampled_feature: IconPath.sampling_feature,
+    LinkRelation.sample_of: IconPath.sampling_feature,
+    OgcLinkRelation.sample_of: IconPath.sampling_feature,
     LinkRelation.platform: IconPath.system_type_platform,
     OgcLinkRelation.platform: IconPath.system_type_platform,
 }
@@ -230,6 +250,30 @@ class OacsResourceTreeWidgetBase(
     ) -> None:
         """Fetch the full record for one item.  Override for types that support it."""
 
+    def _fetch_related_item_details(
+            self,
+            tree_item: QtWidgets.QTreeWidgetItem,
+            item: models.OacsItem,
+    ) -> None:
+        if tree_item in self._pending_detail_requests.values():
+            return
+        connection = settings_manager.get_current_data_source_connection()
+        if not connection:
+            return
+        if isinstance(item, models.System):
+            meta = oacs_client.initiate_system_item_fetch(item.id_, connection)
+        elif isinstance(item, models.Deployment):
+            meta = oacs_client.initiate_deployment_item_fetch(item.id_, connection)
+        elif isinstance(item, models.SamplingFeature):
+            meta = oacs_client.initiate_sampling_feature_item_fetch(item.id_, connection)
+        elif isinstance(item, models.Procedure):
+            meta = oacs_client.initiate_procedure_item_fetch(item.id_, connection)
+        elif isinstance(item, models.DataStream):
+            meta = oacs_client.initiate_datastream_item_fetch(item.id_, connection)
+        else:
+            return
+        self._pending_detail_requests[meta.request_id] = tree_item
+
     def _build_extra_search_controls(
             self, bar_layout: QtWidgets.QHBoxLayout) -> None:
         """Insert extra widgets into the search bar.  Override if needed."""
@@ -292,9 +336,16 @@ class OacsResourceTreeWidgetBase(
         root.addWidget(self._splitter, stretch=1)
 
     def _connect_base_signals(self) -> None:
-        oacs_client.sampling_feature_list_fetched.connect(self._on_sf_list_fetched)
-        oacs_client.datastream_list_fetched.connect(self._on_ds_list_fetched)
+        oacs_client.system_list_fetched.connect(self._on_system_list_fetched)
+        oacs_client.system_item_fetched.connect(self._on_resource_item_fetched)
         oacs_client.deployment_list_fetched.connect(self._on_dep_list_fetched)
+        oacs_client.deployment_item_fetched.connect(self._on_resource_item_fetched)
+        oacs_client.sampling_feature_list_fetched.connect(self._on_sf_list_fetched)
+        oacs_client.sampling_feature_item_fetched.connect(self._on_resource_item_fetched)
+        oacs_client.procedure_list_fetched.connect(self._on_procedure_list_fetched)
+        oacs_client.procedure_item_fetched.connect(self._on_resource_item_fetched)
+        oacs_client.datastream_list_fetched.connect(self._on_ds_list_fetched)
+        oacs_client.datastream_item_fetched.connect(self._on_resource_item_fetched)
         oacs_client.request_started.connect(self._on_request_started)
         oacs_client.request_ended.connect(self._on_request_ended)
         self._tree.itemSelectionChanged.connect(self._on_selection_changed)
@@ -371,19 +422,12 @@ class OacsResourceTreeWidgetBase(
         if selected and selected[0] is tree_item:
             self._detail.show_item(item)
 
-    def _on_sf_list_fetched(
+    def _on_system_list_fetched(
             self,
-            sf_list: models.SamplingFeatureList,
+            system_list: models.SystemList,
             meta: OacsRequestMetadata,
     ) -> None:
-        self._populate_group(meta.request_id, sf_list.items)
-
-    def _on_ds_list_fetched(
-            self,
-            ds_list: models.DataStreamList,
-            meta: OacsRequestMetadata,
-    ) -> None:
-        self._populate_group(meta.request_id, ds_list.items)
+        self._populate_group(meta.request_id, system_list.items)
 
     def _on_dep_list_fetched(
             self,
@@ -391,6 +435,27 @@ class OacsResourceTreeWidgetBase(
             meta: OacsRequestMetadata,
     ) -> None:
         self._populate_group(meta.request_id, dep_list.items)
+
+    def _on_sf_list_fetched(
+            self,
+            sf_list: models.SamplingFeatureList,
+            meta: OacsRequestMetadata,
+    ) -> None:
+        self._populate_group(meta.request_id, sf_list.items)
+
+    def _on_procedure_list_fetched(
+            self,
+            procedure_list: models.ProcedureList,
+            meta: OacsRequestMetadata,
+    ) -> None:
+        self._populate_group(meta.request_id, procedure_list.items)
+
+    def _on_ds_list_fetched(
+            self,
+            ds_list: models.DataStreamList,
+            meta: OacsRequestMetadata,
+    ) -> None:
+        self._populate_group(meta.request_id, ds_list.items)
 
     def _populate_group(
             self,
@@ -484,6 +549,8 @@ class OacsResourceTreeWidgetBase(
         item = QtWidgets.QTreeWidgetItem(
             [oacs_item.name, type_label], _RELATED_ITEM_TYPE)
         item.setData(0, _ITEM_DATA_ROLE, oacs_item)
+        item.setData(0, _DETAILS_FETCHED_ROLE, False)
+        item.setChildIndicatorPolicy(QtWidgets.QTreeWidgetItem.ShowIndicator)
         item.setIcon(0, utils.create_icon_from_svg(icon_path, 14))
         if isinstance(oacs_item, models.OacsFeature):
             item.setToolTip(0, oacs_item.uid)
@@ -500,6 +567,12 @@ class OacsResourceTreeWidgetBase(
                         ["Loading details…", ""], _PLACEHOLDER_TYPE))
                 resource: models.OacsItem = item.data(0, _ITEM_DATA_ROLE)
                 self._fetch_item_details(item, resource.id_)
+        elif itype == _RELATED_ITEM_TYPE:
+            if not item.data(0, _DETAILS_FETCHED_ROLE):
+                item.addChild(QtWidgets.QTreeWidgetItem(
+                    ["Loading details…", ""], _PLACEHOLDER_TYPE))
+                resource: models.OacsItem = item.data(0, _ITEM_DATA_ROLE)
+                self._fetch_related_item_details(item, resource)
         elif itype == _GROUP_ITEM_TYPE:
             if not item.data(0, _DETAILS_FETCHED_ROLE):
                 link: models.Link = item.data(0, _LINK_ROLE)
@@ -570,7 +643,6 @@ class SearchDeploymentTreeWidget(OacsResourceTreeWidgetBase):
 
     def _connect_type_signals(self) -> None:
         oacs_client.deployment_list_fetched.connect(self._on_resource_list_fetched)
-        oacs_client.deployment_item_fetched.connect(self._on_resource_item_fetched)
 
     def _initiate_search(self) -> None:
         connection = settings_manager.get_current_data_source_connection()
@@ -609,8 +681,6 @@ class SearchSamplingFeatureTreeWidget(OacsResourceTreeWidgetBase):
     def _connect_type_signals(self) -> None:
         oacs_client.sampling_feature_list_fetched.connect(
             self._on_resource_list_fetched)
-        oacs_client.sampling_feature_item_fetched.connect(
-            self._on_resource_item_fetched)
 
     def _initiate_search(self) -> None:
         connection = settings_manager.get_current_data_source_connection()
@@ -648,12 +718,24 @@ class SearchSamplingFeatureTreeWidget(OacsResourceTreeWidgetBase):
 
 class SearchProcedureTreeWidget(OacsResourceTreeWidgetBase):
 
-    _items_have_relations = False
     _resource_label = "procedures"
     _search_placeholder = "Search procedures…"
 
     def _connect_type_signals(self) -> None:
         oacs_client.procedure_list_fetched.connect(self._on_resource_list_fetched)
+
+    def _fetch_item_details(
+            self,
+            tree_item: QtWidgets.QTreeWidgetItem,
+            item_id: str,
+    ) -> None:
+        if tree_item in self._pending_detail_requests.values():
+            return
+        connection = settings_manager.get_current_data_source_connection()
+        if not connection:
+            return
+        meta = oacs_client.initiate_procedure_item_fetch(item_id, connection)
+        self._pending_detail_requests[meta.request_id] = tree_item
 
     def _initiate_search(self) -> None:
         connection = settings_manager.get_current_data_source_connection()
@@ -676,13 +758,25 @@ class SearchProcedureTreeWidget(OacsResourceTreeWidgetBase):
 
 class SearchDataStreamTreeWidget(OacsResourceTreeWidgetBase):
 
-    _items_have_relations = False
     _supports_load_all = False
     _resource_label = "datastreams"
     _search_placeholder = "Search datastreams…"
 
     def _connect_type_signals(self) -> None:
         oacs_client.datastream_list_fetched.connect(self._on_resource_list_fetched)
+
+    def _fetch_item_details(
+            self,
+            tree_item: QtWidgets.QTreeWidgetItem,
+            item_id: str,
+    ) -> None:
+        if tree_item in self._pending_detail_requests.values():
+            return
+        connection = settings_manager.get_current_data_source_connection()
+        if not connection:
+            return
+        meta = oacs_client.initiate_datastream_item_fetch(item_id, connection)
+        self._pending_detail_requests[meta.request_id] = tree_item
 
     def _initiate_search(self) -> None:
         connection = settings_manager.get_current_data_source_connection()
