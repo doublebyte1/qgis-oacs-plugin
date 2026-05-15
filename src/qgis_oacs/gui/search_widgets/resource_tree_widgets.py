@@ -16,9 +16,10 @@ from qgis.PyQt import (
 
 from ... import models, utils
 from ...client import oacs_client, OacsRequestMetadata
-from ...constants import IconPath, LinkRelation, OgcLinkRelation
+from ...constants import IconPath, LinkRelation, OgcLinkRelation, LINK_REL_TO_ICON
 from ...settings import settings_manager
 from ..abc import AbstractQWidgetMeta
+from ..detail_panel import ResourceDetailPanel
 
 # ---------------------------------------------------------------------------
 # Shared constants
@@ -32,154 +33,6 @@ _PLACEHOLDER_TYPE = 1004
 _ITEM_DATA_ROLE = QtCore.Qt.UserRole
 _DETAILS_FETCHED_ROLE = QtCore.Qt.UserRole + 1
 _LINK_ROLE = QtCore.Qt.UserRole + 2
-
-_LINK_REL_TO_ICON: dict[str, str] = {
-    # singular resource links
-    LinkRelation.system: IconPath.system_type_system,
-    OgcLinkRelation.system: IconPath.system_type_system,
-    LinkRelation.procedure: IconPath.procedure_type_procedure,
-    OgcLinkRelation.procedure: IconPath.procedure_type_procedure,
-    LinkRelation.deployment: IconPath.deployment,
-    OgcLinkRelation.deployment: IconPath.deployment,
-    LinkRelation.sampling_feature: IconPath.sampling_feature,
-    OgcLinkRelation.sampling_feature: IconPath.sampling_feature,
-    # collection / association links
-    LinkRelation.implementing_systems: IconPath.system_type_system,
-    OgcLinkRelation.implementing_systems: IconPath.system_type_system,
-    LinkRelation.data_streams: IconPath.datastream,
-    OgcLinkRelation.data_streams: IconPath.datastream,
-    LinkRelation.control_streams: IconPath.datastream,
-    OgcLinkRelation.control_streams: IconPath.datastream,
-    LinkRelation.observations: IconPath.datastream_type_observation,
-    OgcLinkRelation.observations: IconPath.datastream_type_observation,
-    LinkRelation.sampling_features: IconPath.sampling_feature,
-    OgcLinkRelation.sampling_features: IconPath.sampling_feature,
-    LinkRelation.deployments: IconPath.deployment,
-    OgcLinkRelation.deployments: IconPath.deployment,
-    LinkRelation.sub_deployments: IconPath.deployment,
-    OgcLinkRelation.sub_deployments: IconPath.deployment,
-    LinkRelation.parent_deployment: IconPath.deployment,
-    OgcLinkRelation.parent_deployment: IconPath.deployment,
-    LinkRelation.deployed_systems: IconPath.system_type_system,
-    OgcLinkRelation.deployed_systems: IconPath.system_type_system,
-    LinkRelation.procedures: IconPath.procedure_type_procedure,
-    OgcLinkRelation.procedures: IconPath.procedure_type_procedure,
-    LinkRelation.sub_systems: IconPath.system_type_system,
-    OgcLinkRelation.sub_systems: IconPath.system_type_system,
-    LinkRelation.parent_system: IconPath.system_type_system,
-    OgcLinkRelation.parent_system: IconPath.system_type_system,
-    LinkRelation.sampled_feature: IconPath.sampling_feature,
-    OgcLinkRelation.sampled_feature: IconPath.sampling_feature,
-    LinkRelation.sample_of: IconPath.sampling_feature,
-    OgcLinkRelation.sample_of: IconPath.sampling_feature,
-    LinkRelation.platform: IconPath.system_type_platform,
-    OgcLinkRelation.platform: IconPath.system_type_platform,
-}
-
-
-# ---------------------------------------------------------------------------
-# Shared detail panel
-# ---------------------------------------------------------------------------
-
-class _ResourceDetailPanel(QtWidgets.QWidget):
-    """Shows metadata and actions for the currently selected tree node."""
-
-    def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
-        super().__init__(parent)
-        self._current_item: models.OacsItem | None = None
-        self._build_ui()
-
-    def _build_ui(self) -> None:
-        layout = QtWidgets.QVBoxLayout(self)
-        layout.setContentsMargins(8, 8, 8, 8)
-        layout.setSpacing(6)
-
-        self._header_la = QtWidgets.QLabel("No item selected")
-        self._header_la.setStyleSheet("font-weight: bold; font-size: 11pt;")
-        self._header_la.setWordWrap(True)
-        layout.addWidget(self._header_la)
-
-        self._sub_la = QtWidgets.QLabel("")
-        self._sub_la.setWordWrap(True)
-        self._sub_la.setStyleSheet("color: palette(dark);")
-        layout.addWidget(self._sub_la)
-
-        self._props_tw = QtWidgets.QTableWidget()
-        self._props_tw.setColumnCount(2)
-        self._props_tw.setHorizontalHeaderLabels(["Property", "Value"])
-        self._props_tw.horizontalHeader().setStretchLastSection(True)
-        self._props_tw.verticalHeader().setVisible(False)
-        self._props_tw.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
-        self._props_tw.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
-        self._props_tw.setAlternatingRowColors(True)
-        layout.addWidget(self._props_tw, stretch=1)
-
-        btn_row = QtWidgets.QHBoxLayout()
-        btn_row.addStretch()
-        self._load_pb = QtWidgets.QPushButton()
-        self._load_pb.setEnabled(False)
-        self._load_pb.clicked.connect(self._on_load_clicked)
-        btn_row.addWidget(self._load_pb)
-        layout.addLayout(btn_row)
-
-    def clear(self) -> None:
-        self._current_item = None
-        self._header_la.setText("No item selected")
-        self._sub_la.setText("")
-        self._props_tw.clearContents()
-        self._props_tw.setRowCount(0)
-        self._load_pb.setEnabled(False)
-
-    def show_item(self, item: models.OacsItem) -> None:
-        self._current_item = item
-        self._header_la.setText(item.name)
-        if isinstance(item, models.OacsFeature):
-            self._sub_la.setText(item.uid)
-            self._fill_properties(self._properties_with_url(item))
-            self._update_load_button(item.geometry)
-        else:
-            self._sub_la.setText(item.description or "")
-            self._fill_properties(self._properties_with_url(item))
-            self._load_pb.setEnabled(False)
-
-    @staticmethod
-    def _properties_with_url(item: models.OacsItem) -> dict[str, str]:
-        props = item.get_renderable_properties()
-        connection = settings_manager.get_current_data_source_connection()
-        if connection and hasattr(type(item), "collection_path"):
-            props["URL"] = item.get_detail_url(connection.base_url)
-        return props
-
-    def _update_load_button(self, geometry) -> None:
-        has_geometry = bool(geometry)
-        self._load_pb.setEnabled(True)
-        self._load_pb.setText("Add to Map" if has_geometry else "Add as Layer")
-        icon_path = (
-            IconPath.feature_has_geospatial_location
-            if has_geometry
-            else IconPath.feature_does_not_have_geospatial_location
-        )
-        self._load_pb.setIcon(QtGui.QIcon(icon_path))
-
-    def _fill_properties(self, properties: dict[str, str]) -> None:
-        self._props_tw.clearContents()
-        self._props_tw.setRowCount(len(properties))
-        for row, (k, v) in enumerate(properties.items()):
-            self._props_tw.setItem(row, 0, QtWidgets.QTableWidgetItem(str(k)))
-            if k == "URL":
-                link = QtWidgets.QLabel(f'<a href="{v}">{v}</a>')
-                link.setOpenExternalLinks(True)
-                link.setTextInteractionFlags(QtCore.Qt.TextBrowserInteraction)
-                link.setContentsMargins(4, 2, 4, 2)
-                self._props_tw.setCellWidget(row, 1, link)
-            else:
-                self._props_tw.setItem(row, 1, QtWidgets.QTableWidgetItem(str(v)))
-        self._props_tw.resizeColumnToContents(0)
-        self._props_tw.resizeRowsToContents()
-
-    def _on_load_clicked(self) -> None:
-        if self._current_item and isinstance(self._current_item, models.OacsFeature):
-            utils.load_oacs_feature_as_layer(self._current_item)
 
 
 # ---------------------------------------------------------------------------
@@ -329,7 +182,7 @@ class OacsResourceTreeWidgetBase(
         self._tree.setUniformRowHeights(True)
         self._splitter.addWidget(self._tree)
 
-        self._detail = _ResourceDetailPanel()
+        self._detail = ResourceDetailPanel()
         self._splitter.addWidget(self._detail)
         self._splitter.setSizes([300, 200])
 
@@ -500,7 +353,7 @@ class OacsResourceTreeWidgetBase(
         item = QtWidgets.QTreeWidgetItem([title, ""], _GROUP_ITEM_TYPE)
         item.setData(0, _LINK_ROLE, link)
         item.setData(0, _DETAILS_FETCHED_ROLE, False)
-        icon_path = _LINK_REL_TO_ICON.get(link.rel, IconPath.search)
+        icon_path = LINK_REL_TO_ICON.get(link.rel, IconPath.search)
         item.setIcon(0, utils.create_icon_from_svg(icon_path, 14))
         item.addChild(QtWidgets.QTreeWidgetItem(["…", ""], _PLACEHOLDER_TYPE))
         return item
@@ -606,7 +459,7 @@ class OacsResourceTreeWidgetBase(
                 if connection else self._resource_label
             )
             utils.load_oacs_feature_list_as_layers(
-                self._last_feature_list, name_prefix=prefix)
+                self._last_feature_list, name_prefix=prefix, connection=connection)
 
     def _on_selection_changed(self) -> None:
         selected = self._tree.selectedItems()

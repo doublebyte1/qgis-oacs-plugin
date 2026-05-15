@@ -1,4 +1,6 @@
+import dataclasses
 import datetime as dt
+import json
 import re
 import sys
 import typing
@@ -11,8 +13,19 @@ from qgis.PyQt import (
     QtWidgets,
 )
 
+from .constants import (
+    OACS_SCHEMA_VERSION_KEY,
+    OACS_SCHEMA_VERSION,
+    OACS_CONNECTION_ID_KEY,
+    OACS_CONNECTION_BASE_URL_KEY,
+    OACS_RESOURCE_TYPE_KEY,
+    OACS_SELF_LINK_KEY,
+    OACS_LINKS_JSON_KEY,
+)
+
 if typing.TYPE_CHECKING:
     from . import models
+    from .settings import DataSourceConnectionSettings
 
 
 def log_message(
@@ -125,7 +138,29 @@ def clear_search_results(layout_displayer: QtWidgets.QLayout) -> None:
             clear_search_results(layout)
 
 
-def load_oacs_feature_as_layer(oacs_feat: "models.OacsFeature") -> None:
+def set_oacs_layer_properties(
+        layer: qgis.core.QgsMapLayer,
+        connection: "DataSourceConnectionSettings",
+        resource: "models.OacsItem",
+) -> None:
+    """Write OACS context onto a QGIS layer's custom properties."""
+    self_link = resource.get_detail_url(connection.base_url)
+    layer.setCustomProperty(OACS_SCHEMA_VERSION_KEY, OACS_SCHEMA_VERSION)
+    layer.setCustomProperty(OACS_CONNECTION_ID_KEY, str(connection.id))
+    layer.setCustomProperty(OACS_CONNECTION_BASE_URL_KEY, connection.base_url)
+    layer.setCustomProperty(OACS_RESOURCE_TYPE_KEY, type(resource).__name__)
+    layer.setCustomProperty(OACS_SELF_LINK_KEY, self_link)
+    layer.setCustomProperty(
+        OACS_LINKS_JSON_KEY,
+        json.dumps([dataclasses.asdict(lnk) for lnk in resource.get_relevant_links()]),
+    )
+
+
+def _build_vector_layer(
+        oacs_feat: "models.OacsFeature",
+        connection: "DataSourceConnectionSettings | None" = None,
+) -> qgis.core.QgsVectorLayer:
+    """Create a single-feature QgsVectorLayer without adding it to the project."""
     if oacs_feat.geometry:
         geom_type = qgis.core.QgsWkbTypes.displayString(
             oacs_feat.geometry.wkbType())
@@ -138,10 +173,7 @@ def load_oacs_feature_as_layer(oacs_feat: "models.OacsFeature") -> None:
     provider = vector_layer.dataProvider()
     properties = oacs_feat.get_renderable_properties()
     provider.addAttributes(
-        [
-            qgis.core.QgsField(k, QtCore.QVariant.Type.String)
-            for k in properties
-        ]
+        [qgis.core.QgsField(k, QtCore.QVariant.Type.String) for k in properties]
     )
     vector_layer.updateFields()
     qgis_feature = qgis.core.QgsFeature(vector_layer.fields())
@@ -150,86 +182,27 @@ def load_oacs_feature_as_layer(oacs_feat: "models.OacsFeature") -> None:
     qgis_feature.setAttributes(list(properties.values()))
     provider.addFeatures([qgis_feature])
     vector_layer.updateExtents()
-    qgis.core.QgsProject.instance().addMapLayer(vector_layer)
+    if connection:
+        set_oacs_layer_properties(vector_layer, connection, oacs_feat)
+    return vector_layer
+
+
+def load_oacs_feature_as_layer(
+        oacs_feat: "models.OacsFeature",
+        connection: "DataSourceConnectionSettings | None" = None,
+) -> None:
+    qgis.core.QgsProject.instance().addMapLayer(
+        _build_vector_layer(oacs_feat, connection)
+    )
 
 
 def load_oacs_feature_list_as_layers(
         oacs_feature_list: "models.OacsFeatureList",
-        name_prefix: str = ""
+        name_prefix: str = "",
+        connection: "DataSourceConnectionSettings | None" = None,
 ) -> None:
-    # - some features may have geometry, others not
-    # - features that have geometry may have different geometry types
-    feats_to_render = {
-        qgis.core.Qgis.WkbType.Point: [],
-        qgis.core.Qgis.WkbType.PointM: [],
-        qgis.core.Qgis.WkbType.PointZ: [],
-        qgis.core.Qgis.WkbType.PointZM: [],
-        qgis.core.Qgis.WkbType.MultiPoint: [],
-        qgis.core.Qgis.WkbType.MultiPointM: [],
-        qgis.core.Qgis.WkbType.MultiPointZ: [],
-        qgis.core.Qgis.WkbType.MultiPointZM: [],
-        qgis.core.Qgis.WkbType.LineString: [],
-        qgis.core.Qgis.WkbType.LineStringM: [],
-        qgis.core.Qgis.WkbType.LineStringZ: [],
-        qgis.core.Qgis.WkbType.LineStringZM: [],
-        qgis.core.Qgis.WkbType.MultiLineString: [],
-        qgis.core.Qgis.WkbType.MultiLineStringM: [],
-        qgis.core.Qgis.WkbType.MultiLineStringZ: [],
-        qgis.core.Qgis.WkbType.MultiLineStringZM: [],
-        qgis.core.Qgis.WkbType.Polygon: [],
-        qgis.core.Qgis.WkbType.PolygonZ: [],
-        qgis.core.Qgis.WkbType.PolygonM: [],
-        qgis.core.Qgis.WkbType.PolygonZM: [],
-        qgis.core.Qgis.WkbType.MultiPolygon: [],
-        qgis.core.Qgis.WkbType.MultiPolygonZ: [],
-        qgis.core.Qgis.WkbType.MultiPolygonM: [],
-        qgis.core.Qgis.WkbType.MultiPolygonZM: [],
-        None: [],
-    }
-    for oacs_feat in oacs_feature_list.items:
-        container = feats_to_render[geom.wkbType() if (geom := oacs_feat.geometry) else None]
-        container.append(oacs_feat)
-    qgis_layers = []
-    for wkb_type, oacs_features in feats_to_render.items():
-        if len(oacs_features) == 0:
-            continue
-        if wkb_type is None:
-            geom_type = "None"
-            crs = qgis.core.QgsCoordinateReferenceSystem("EPSG:4326")
-            layer_name = "-".join((name_prefix, "no_geometry"))
-        else:
-            geom_type = qgis.core.QgsWkbTypes.displayString(wkb_type)
-            layer_name = "-".join((name_prefix, geom_type.lower()))
-            # assumes all feats have the same CRS
-            crs = qgis.core.QgsCoordinateReferenceSystem(oacs_features[0].geometry.crs())
-        vector_layer = qgis.core.QgsVectorLayer(
-            f"{geom_type}?crs={crs.authid()}", layer_name, "memory")
-        provider = vector_layer.dataProvider()
-        _names = set()
-        for oacs_feat in oacs_features:
-            for property_name in oacs_feat.get_renderable_properties().keys():
-                _names.add(property_name)
-        property_names = list(_names)
-        provider.addAttributes(
-            [
-                qgis.core.QgsField(k, QtCore.QVariant.Type.String)
-                for k in property_names
-            ]
-        )
-        vector_layer.updateFields()
-        qgis_features = [
-        ]
-        for oacs_feat in oacs_features:
-            qgis_feature = qgis.core.QgsFeature(vector_layer.fields())
-            if oacs_feat.geometry:
-                qgis_feature.setGeometry(oacs_feat.geometry)
-            feat_attributes = []
-            rendered_properties = oacs_feat.get_renderable_properties()
-            for idx, name in enumerate(property_names):
-                feat_attributes.append(rendered_properties.get(name, ""))
-            qgis_feature.setAttributes(feat_attributes)
-            qgis_features.append(qgis_feature)
-        provider.addFeatures(qgis_features)
-        vector_layer.updateExtents()
-        qgis_layers.append(vector_layer)
-    qgis.core.QgsProject.instance().addMapLayers(qgis_layers)
+    layers = [
+        _build_vector_layer(feat, connection)
+        for feat in oacs_feature_list.items
+    ]
+    qgis.core.QgsProject.instance().addMapLayers(layers)

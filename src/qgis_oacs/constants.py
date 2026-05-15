@@ -1,6 +1,19 @@
 import dataclasses
 
 
+# ---------------------------------------------------------------------------
+# OACS layer custom property keys
+# ---------------------------------------------------------------------------
+
+OACS_SCHEMA_VERSION_KEY = "oacs/schema_version"
+OACS_SCHEMA_VERSION = 1
+OACS_CONNECTION_ID_KEY = "oacs/connection_id"
+OACS_CONNECTION_BASE_URL_KEY = "oacs/connection_base_url"
+OACS_RESOURCE_TYPE_KEY = "oacs/resource_type"
+OACS_SELF_LINK_KEY = "oacs/self_link"
+OACS_LINKS_JSON_KEY = "oacs/links_json"
+
+
 @dataclasses.dataclass(frozen=True)
 class IconPath:
     main_logo = ":/plugins/qgis_oacs/graph_3.svg"
@@ -84,4 +97,57 @@ class OgcLinkRelation:
     sampling_features = "ogc-rel:samplingFeatures"
     sub_deployments = "ogc-rel:subdeployments"
     sub_systems = "ogc-rel:subsystems"
+
+
+# ---------------------------------------------------------------------------
+# Link relation → icon path mapping (used by tree widgets and the panel)
+# ---------------------------------------------------------------------------
+
+def _build_link_rel_to_icon() -> dict[str, str]:
+    lr = LinkRelation
+    ogc = OgcLinkRelation
+    ip = IconPath
+    return {
+        lr.system: ip.system_type_system,
+        ogc.system: ip.system_type_system,
+        lr.procedure: ip.procedure_type_procedure,
+        ogc.procedure: ip.procedure_type_procedure,
+        lr.deployment: ip.deployment,
+        ogc.deployment: ip.deployment,
+        lr.sampling_feature: ip.sampling_feature,
+        ogc.sampling_feature: ip.sampling_feature,
+        lr.implementing_systems: ip.system_type_system,
+        ogc.implementing_systems: ip.system_type_system,
+        lr.data_streams: ip.datastream,
+        ogc.data_streams: ip.datastream,
+        lr.control_streams: ip.datastream,
+        ogc.control_streams: ip.datastream,
+        lr.observations: ip.datastream_type_observation,
+        ogc.observations: ip.datastream_type_observation,
+        lr.sampling_features: ip.sampling_feature,
+        ogc.sampling_features: ip.sampling_feature,
+        lr.deployments: ip.deployment,
+        ogc.deployments: ip.deployment,
+        lr.sub_deployments: ip.deployment,
+        ogc.sub_deployments: ip.deployment,
+        lr.parent_deployment: ip.deployment,
+        ogc.parent_deployment: ip.deployment,
+        lr.deployed_systems: ip.system_type_system,
+        ogc.deployed_systems: ip.system_type_system,
+        lr.procedures: ip.procedure_type_procedure,
+        ogc.procedures: ip.procedure_type_procedure,
+        lr.sub_systems: ip.system_type_system,
+        ogc.sub_systems: ip.system_type_system,
+        lr.parent_system: ip.system_type_system,
+        ogc.parent_system: ip.system_type_system,
+        lr.sampled_feature: ip.sampling_feature,
+        ogc.sampled_feature: ip.sampling_feature,
+        lr.sample_of: ip.sampling_feature,
+        ogc.sample_of: ip.sampling_feature,
+        lr.platform: ip.system_type_platform,
+        ogc.platform: ip.system_type_platform,
+    }
+
+
+LINK_REL_TO_ICON: dict[str, str] = _build_link_rel_to_icon()
 

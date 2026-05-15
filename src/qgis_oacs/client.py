@@ -23,6 +23,7 @@ class RequestType(enum.Enum):
     DATASTREAM_ITEM = "datastream-item"
     DEPLOYMENT_LIST = "deployment-list"
     DEPLOYMENT_ITEM = "deployment-item"
+    OBSERVATIONS = "observations"
     PROCEDURE_LIST = "procedure-list"
     PROCEDURE_ITEM = "procedure-item"
     SAMPLING_FEATURE_LIST = "sampling-feature-list"
@@ -51,6 +52,7 @@ class OacsClient(QtCore.QObject):
     procedure_item_fetched = QtCore.pyqtSignal(models.Procedure, OacsRequestMetadata)
     datastream_list_fetched = QtCore.pyqtSignal(models.DataStreamList, OacsRequestMetadata)
     datastream_item_fetched = QtCore.pyqtSignal(models.DataStream, OacsRequestMetadata)
+    observations_fetched = QtCore.pyqtSignal(models.ObservationList, OacsRequestMetadata)
 
     def initiate_system_list_search(
             self,
@@ -342,6 +344,65 @@ class OacsClient(QtCore.QObject):
         )
         self.request_started.emit(meta)
         return meta
+
+    def initiate_observations_fetch(
+            self,
+            link: models.Link,
+            connection: settings.DataSourceConnectionSettings,
+            datastream: "models.DataStream | None" = None,
+    ) -> OacsRequestMetadata:
+        meta = OacsRequestMetadata(request_type=RequestType.OBSERVATIONS)
+        self.dispatch_network_request(
+            search_params=models.ClientSearchParams(
+                url_or_relative_path=link.href,
+                headers={"Accept": "*/*"},
+            ),
+            connection=connection,
+            task_metadata=meta,
+            response_handler=functools.partial(
+                self.handle_observations_response,
+                target_task_metadata=meta,
+                datastream=datastream,
+            ),
+        )
+        self.request_started.emit(meta)
+        return meta
+
+    def handle_observations_response(
+            self,
+            response: qgis.core.QgsNetworkContentFetcherTask,
+            target_task_metadata: OacsRequestMetadata,
+            datastream: "models.DataStream | None" = None,
+    ) -> None:
+        reply: QtNetwork.QNetworkReply | None = response.reply()
+        if not reply:
+            return
+        if not (task_metadata := getattr(response, "oacs_metadata", None)):
+            return
+        elif task_metadata.request_id != target_task_metadata.request_id:
+            return
+        try:
+            if reply.error() != QtNetwork.QNetworkReply.NetworkError.NoError:
+                http_status = reply.attribute(
+                    QtNetwork.QNetworkRequest.Attribute.HttpStatusCodeAttribute)
+                self.request_failed.emit(
+                    task_metadata, f"HTTP {http_status}: {reply.errorString()}")
+            else:
+                media_type = bytes(
+                    reply.rawHeader(b"Content-Type")).decode("utf-8", errors="replace")
+                payload = bytes(reply.readAll())
+                obs_list = models.ObservationList(
+                    items=[models.Observation(payload=payload, media_type=media_type)],
+                    datastream=datastream,
+                )
+                self.observations_fetched.emit(obs_list, task_metadata)
+        except Exception as err:
+            log_message(f"Unexpected error fetching observations: {err}")
+            import traceback
+            log_message(traceback.format_exc())
+            self.request_failed.emit(task_metadata, f"Unexpected error: {err}")
+        finally:
+            self.request_ended.emit(task_metadata)
 
     @staticmethod
     def _wrap_single_system(raw: dict) -> models.SystemList:

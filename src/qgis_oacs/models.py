@@ -183,6 +183,32 @@ class Link:
             title=response_content.get("title"),
         )
 
+    @classmethod
+    def from_inline_property(
+            cls,
+            prop_key: str,
+            raw: dict,
+            rel_override: str | None = None,
+    ) -> "Link":
+        """Parse a link from an inline ``prop@link`` API property.
+
+        ``rel_override`` always sets the rel, overriding whatever the server
+        provides.  Use it for inline properties whose resource type is defined
+        by the property name, not by the server-supplied rel.  Applied before
+        title derivation so the title reflects the correct type,
+        e.g. ``systemKind@link`` + ``rel_override="procedure"``
+        → ``"systemKind (procedure)"``.
+        """
+        link = cls.from_api_response(raw)
+        if rel_override:
+            link = dataclasses.replace(link, rel=rel_override)
+        if not link.title:
+            prop_label = prop_key.removesuffix("@link")
+            rel_suffix = (link.rel or "").rsplit(":", 1)[-1]
+            title = f"{prop_label} ({rel_suffix})" if rel_suffix else prop_label
+            link = dataclasses.replace(link, title=title)
+        return link
+
 
 @dataclasses.dataclass(frozen=True)
 class ApiLandingPage:
@@ -410,7 +436,10 @@ class System(OacsFeature):
                     else None
                 ),
                 "system_kind_link": (
-                    Link.from_api_response(raw_system_kind)
+                    Link.from_inline_property(
+                        "systemKind@link", raw_system_kind,
+                        rel_override=LinkRelation.procedure,
+                    )
                     if (raw_system_kind := response_content["properties"].get("systemKind@link", None))
                     else None
                 ),
@@ -444,9 +473,11 @@ class System(OacsFeature):
             OgcLinkRelation.procedures,
             OgcLinkRelation.data_streams,
             OgcLinkRelation.control_streams,
-
         )
-        return [link for link in self.links if link.rel in relevant_link_rels]
+        links = [link for link in self.links if link.rel in relevant_link_rels]
+        if self.system_kind_link:
+            links.append(self.system_kind_link)
+        return links
 
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
@@ -464,7 +495,10 @@ class Deployment(OacsFeature):
         )
         try:
             deployed_systems_link = [
-                Link.from_api_response(raw_system_link)
+                Link.from_inline_property(
+                    "deployedSystems@link", raw_system_link,
+                    rel_override=LinkRelation.system,
+                )
                 for raw_system_link in response_content["properties"].get("deployedSystems@link", [])
             ]
         except (TypeError, KeyError) as err:
@@ -481,7 +515,10 @@ class Deployment(OacsFeature):
                 else None
             ),
             platform_link=(
-                Link.from_api_response(raw_system_kind)
+                Link.from_inline_property(
+                    "platform@link", raw_system_kind,
+                    rel_override=LinkRelation.platform,
+                )
                 if (raw_system_kind := response_content["properties"].get("platform@link", None))
                 else None
             ),
@@ -517,7 +554,12 @@ class Deployment(OacsFeature):
         #
         # https://github.com/opengeospatial/ogcapi-connected-systems/issues/173
         #
-        return [link for link in self.links if link.rel in relevant_link_rels]
+        links = [link for link in self.links if link.rel in relevant_link_rels]
+        if self.platform_link:
+            links.append(self.platform_link)
+        if self.deployed_systems_link:
+            links.extend(self.deployed_systems_link)
+        return links
 
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
@@ -540,7 +582,10 @@ class SamplingFeature(OacsFeature):
                 else None
             ),
             sampled_feature_link=(
-                Link.from_api_response(raw_system_kind)
+                Link.from_inline_property(
+                    "sampledFeature@link", raw_system_kind,
+                    rel_override=LinkRelation.sampled_feature,
+                )
                 if (raw_system_kind := response_content["properties"].pop("sampledFeature@link", None))
                 else None
             )
@@ -571,7 +616,10 @@ class SamplingFeature(OacsFeature):
         #
         # https://github.com/opengeospatial/ogcapi-connected-systems/issues/173
         #
-        return [link for link in self.links if link.rel in relevant_link_rels]
+        links = [link for link in self.links if link.rel in relevant_link_rels]
+        if self.sampled_feature_link:
+            links.append(self.sampled_feature_link)
+        return links
 
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
@@ -752,10 +800,6 @@ class DataStream(OacsItem):
         return {k: v for k, v in properties.items() if v is not None}
 
     def get_relevant_links(self) -> list[Link]:
-        observation_link_rels = (
-            LinkRelation.observations,
-            OgcLinkRelation.observations,
-        )
         return [
             link for link in (
                 self.system_link,
@@ -765,7 +809,13 @@ class DataStream(OacsItem):
                 self.feature_of_interest_link,
             )
             if link is not None
-        ] + [link for link in self.links if link.rel in observation_link_rels]
+        ]
+
+    def get_observations_link(self) -> "Link | None":
+        for link in self.links:
+            if link.rel in (LinkRelation.observations, OgcLinkRelation.observations):
+                return link
+        return None
 
 
 ItemType = typing.TypeVar("ItemType", bound=OacsItem)
@@ -832,3 +882,21 @@ class OacsItemList(typing.Generic[ItemType]):
 @dataclasses.dataclass(frozen=True)
 class DataStreamList(OacsItemList):
     item_type = DataStream
+
+
+@dataclasses.dataclass(frozen=True)
+class Observation:
+    """A single observation record.
+
+    ``media_type`` is taken from the Content-Type of the enclosing response so
+    callers can branch on format (JSON, OM+JSON, CSV, …) without re-inspecting
+    the payload.
+    """
+    payload: bytes
+    media_type: str
+
+
+@dataclasses.dataclass(frozen=True)
+class ObservationList:
+    items: list[Observation]
+    datastream: "DataStream | None" = None
