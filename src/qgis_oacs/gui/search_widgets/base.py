@@ -118,24 +118,33 @@ class OacsFeatureSearchWidgetBase(
             self.search_results_layout.addWidget(
                 QtWidgets.QLabel("No items found"))
         else:
-            load_all_pb = QtWidgets.QPushButton("Load all search results")
-            button_layout = QtWidgets.QHBoxLayout()
-            button_layout.setContentsMargins(9, 9, 9, 9)
-            button_layout.addStretch()
-            button_layout.addWidget(load_all_pb)
-            load_all_pb.clicked.connect(
-                functools.partial(
-                    utils.load_oacs_feature_list_as_layers,
-                    search_result,
-                    name_prefix="-".join(
-                        (
-                            settings_manager.get_current_data_source_connection().name,
-                            "systems"
-                        )
+            self._add_load_all_search_results_button(
+                search_result,
+                layer_name_prefix="-".join(
+                    (
+                        settings_manager.get_current_data_source_connection().name,
+                        "systems"
                     )
                 )
             )
-            self.search_results_layout.addLayout(button_layout)
+            # load_all_pb = QtWidgets.QPushButton("Load all search results")
+            # button_layout = QtWidgets.QHBoxLayout()
+            # button_layout.setContentsMargins(9, 9, 9, 9)
+            # button_layout.addStretch()
+            # button_layout.addWidget(load_all_pb)
+            # load_all_pb.clicked.connect(
+            #     functools.partial(
+            #         utils.load_oacs_feature_list_as_layers,
+            #         search_result,
+            #         name_prefix="-".join(
+            #             (
+            #                 settings_manager.get_current_data_source_connection().name,
+            #                 "systems"
+            #             )
+            #         )
+            #     )
+            # )
+            # self.search_results_layout.addLayout(button_layout)
             for item in search_result.items:
                 self.search_results_layout.addWidget(
                     self._get_display_widget(item)

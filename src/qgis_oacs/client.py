@@ -4,6 +4,7 @@ import functools
 import json
 import typing
 import uuid
+from itertools import chain
 
 import qgis.core
 from qgis.PyQt import (
@@ -22,6 +23,7 @@ class RequestType(enum.Enum):
     DATASTREAM_ITEM = "datastream-item"
     DEPLOYMENT_LIST = "deployment-list"
     DEPLOYMENT_ITEM = "deployment-item"
+    OBSERVATIONS = "observations"
     PROCEDURE_LIST = "procedure-list"
     PROCEDURE_ITEM = "procedure-item"
     SAMPLING_FEATURE_LIST = "sampling-feature-list"
@@ -50,15 +52,27 @@ class OacsClient(QtCore.QObject):
     procedure_item_fetched = QtCore.pyqtSignal(models.Procedure, OacsRequestMetadata)
     datastream_list_fetched = QtCore.pyqtSignal(models.DataStreamList, OacsRequestMetadata)
     datastream_item_fetched = QtCore.pyqtSignal(models.DataStream, OacsRequestMetadata)
+    observations_fetched = QtCore.pyqtSignal(models.ObservationList, OacsRequestMetadata)
 
     def initiate_system_list_search(
             self,
             connection: settings.DataSourceConnectionSettings,
-            q_filter: str | None = None
+            q_filter: str | None = None,
+            system_type: list[models.SystemType] | None = None,
+            parent_system_ids: list[str] | None = None,
+            implements_any_procedure_ids: list[str] | None = None,
+            connected_to_any_feature_of_interest_ids: list[str] | None = None,
+            observes_any_property_ids: list[str] | None = None,
+            controls_any_property_ids: list[str] | None = None,
     ) -> OacsRequestMetadata:
         query = {
             "f": "geojson" if connection.use_f_query_param else None,
             "q": q_filter or None,
+            "featureType": (
+                list(chain.from_iterable(t.to_search_query_params() for t in system_type))
+                if system_type is not None
+                else None
+            )
         }
         meta = OacsRequestMetadata(request_type=RequestType.SYSTEM_LIST)
         self.dispatch_network_request(
@@ -74,7 +88,6 @@ class OacsClient(QtCore.QObject):
             task_metadata=meta,
             response_handler=functools.partial(
                 self.handle_network_response,
-                #parser=models.SystemList.from_api_response,
                 parser=models.SystemList.from_api_response,
                 to_emit=self.system_list_fetched,
             )
@@ -89,7 +102,7 @@ class OacsClient(QtCore.QObject):
     ) -> OacsRequestMetadata:
         query = {
             "f": "geojson" if connection.use_f_query_param else None,
-            "q": q_filter,
+            "q": q_filter or None,
         }
         meta = OacsRequestMetadata(request_type=RequestType.DEPLOYMENT_LIST)
         self.dispatch_network_request(
@@ -119,7 +132,7 @@ class OacsClient(QtCore.QObject):
     ) -> OacsRequestMetadata:
         query = {
             "f": "geojson" if connection.use_f_query_param else None,
-            "q": q_filter,
+            "q": q_filter or None,
         }
         meta = OacsRequestMetadata(request_type=RequestType.PROCEDURE_LIST)
         self.dispatch_network_request(
@@ -149,7 +162,7 @@ class OacsClient(QtCore.QObject):
     ) -> OacsRequestMetadata:
         query = {
             "f": "geojson" if connection.use_f_query_param else None,
-            "q": q_filter,
+            "q": q_filter or None,
         }
         meta = OacsRequestMetadata(request_type=RequestType.SAMPLING_FEATURE_LIST)
         self.dispatch_network_request(
@@ -179,7 +192,7 @@ class OacsClient(QtCore.QObject):
     ) -> OacsRequestMetadata:
         query = {
             "f": "json" if connection.use_f_query_param else None,
-            "q": q_filter,
+            "q": q_filter or None,
         }
         meta = OacsRequestMetadata(request_type=RequestType.DATASTREAM_LIST)
         self.dispatch_network_request(
@@ -332,6 +345,82 @@ class OacsClient(QtCore.QObject):
         self.request_started.emit(meta)
         return meta
 
+    def initiate_observations_fetch(
+            self,
+            link: models.Link,
+            connection: settings.DataSourceConnectionSettings,
+            datastream: "models.DataStream | None" = None,
+    ) -> OacsRequestMetadata:
+        meta = OacsRequestMetadata(request_type=RequestType.OBSERVATIONS)
+        self.dispatch_network_request(
+            search_params=models.ClientSearchParams(
+                url_or_relative_path=link.href,
+                headers={"Accept": "*/*"},
+            ),
+            connection=connection,
+            task_metadata=meta,
+            response_handler=functools.partial(
+                self.handle_observations_response,
+                target_task_metadata=meta,
+                datastream=datastream,
+            ),
+        )
+        self.request_started.emit(meta)
+        return meta
+
+    def handle_observations_response(
+            self,
+            response: qgis.core.QgsNetworkContentFetcherTask,
+            target_task_metadata: OacsRequestMetadata,
+            datastream: "models.DataStream | None" = None,
+    ) -> None:
+        reply: QtNetwork.QNetworkReply | None = response.reply()
+        if not reply:
+            return
+        if not (task_metadata := getattr(response, "oacs_metadata", None)):
+            return
+        elif task_metadata.request_id != target_task_metadata.request_id:
+            return
+        try:
+            if reply.error() != QtNetwork.QNetworkReply.NetworkError.NoError:
+                http_status = reply.attribute(
+                    QtNetwork.QNetworkRequest.Attribute.HttpStatusCodeAttribute)
+                self.request_failed.emit(
+                    task_metadata, f"HTTP {http_status}: {reply.errorString()}")
+            else:
+                media_type = bytes(
+                    reply.rawHeader(b"Content-Type")).decode("utf-8", errors="replace")
+                payload = bytes(reply.readAll())
+                obs_list = models.ObservationList(
+                    items=[models.Observation(payload=payload, media_type=media_type)],
+                    datastream=datastream,
+                )
+                self.observations_fetched.emit(obs_list, task_metadata)
+        except Exception as err:
+            log_message(f"Unexpected error fetching observations: {err}")
+            import traceback
+            log_message(traceback.format_exc())
+            self.request_failed.emit(task_metadata, f"Unexpected error: {err}")
+        finally:
+            self.request_ended.emit(task_metadata)
+
+    @staticmethod
+    def _wrap_single_system(raw: dict) -> models.SystemList:
+        return models.SystemList(items=[models.System.from_api_response(raw)])
+
+    @staticmethod
+    def _wrap_single_deployment(raw: dict) -> models.DeploymentList:
+        return models.DeploymentList(items=[models.Deployment.from_api_response(raw)])
+
+    @staticmethod
+    def _wrap_single_sampling_feature(raw: dict) -> models.SamplingFeatureList:
+        return models.SamplingFeatureList(
+            items=[models.SamplingFeature.from_api_response(raw)])
+
+    @staticmethod
+    def _wrap_single_procedure(raw: dict) -> models.ProcedureList:
+        return models.ProcedureList(items=[models.Procedure.from_api_response(raw)])
+
     def initiate_request_from_link(
             self,
             link: models.Link,
@@ -339,6 +428,106 @@ class OacsClient(QtCore.QObject):
     ) -> OacsRequestMetadata | None:
         """Initiate a request using a Link object from an API response."""
         rel_config = {
+            # single system (wrapped as one-item list)
+            LinkRelation.system: (
+                RequestType.SYSTEM_LIST,
+                self._wrap_single_system,
+                self.system_list_fetched,
+                {"Accept": "application/geo+json"},
+            ),
+            OgcLinkRelation.system: (
+                RequestType.SYSTEM_LIST,
+                self._wrap_single_system,
+                self.system_list_fetched,
+                {"Accept": "application/geo+json"},
+            ),
+            LinkRelation.platform: (
+                RequestType.SYSTEM_LIST,
+                self._wrap_single_system,
+                self.system_list_fetched,
+                {"Accept": "application/geo+json"},
+            ),
+            OgcLinkRelation.platform: (
+                RequestType.SYSTEM_LIST,
+                self._wrap_single_system,
+                self.system_list_fetched,
+                {"Accept": "application/geo+json"},
+            ),
+            LinkRelation.parent_system: (
+                RequestType.SYSTEM_LIST,
+                self._wrap_single_system,
+                self.system_list_fetched,
+                {"Accept": "application/geo+json"},
+            ),
+            OgcLinkRelation.parent_system: (
+                RequestType.SYSTEM_LIST,
+                self._wrap_single_system,
+                self.system_list_fetched,
+                {"Accept": "application/geo+json"},
+            ),
+            # systems (list)
+            LinkRelation.sub_systems: (
+                RequestType.SYSTEM_LIST,
+                models.SystemList.from_api_response,
+                self.system_list_fetched,
+                {"Accept": "application/geo+json"},
+            ),
+            OgcLinkRelation.sub_systems: (
+                RequestType.SYSTEM_LIST,
+                models.SystemList.from_api_response,
+                self.system_list_fetched,
+                {"Accept": "application/geo+json"},
+            ),
+            LinkRelation.deployed_systems: (
+                RequestType.SYSTEM_LIST,
+                models.SystemList.from_api_response,
+                self.system_list_fetched,
+                {"Accept": "application/geo+json"},
+            ),
+            OgcLinkRelation.deployed_systems: (
+                RequestType.SYSTEM_LIST,
+                models.SystemList.from_api_response,
+                self.system_list_fetched,
+                {"Accept": "application/geo+json"},
+            ),
+            LinkRelation.implementing_systems: (
+                RequestType.SYSTEM_LIST,
+                models.SystemList.from_api_response,
+                self.system_list_fetched,
+                {"Accept": "application/geo+json"},
+            ),
+            OgcLinkRelation.implementing_systems: (
+                RequestType.SYSTEM_LIST,
+                models.SystemList.from_api_response,
+                self.system_list_fetched,
+                {"Accept": "application/geo+json"},
+            ),
+            # single deployment (wrapped as one-item list)
+            LinkRelation.deployment: (
+                RequestType.DEPLOYMENT_LIST,
+                self._wrap_single_deployment,
+                self.deployment_list_fetched,
+                {"Accept": "application/geo+json"},
+            ),
+            OgcLinkRelation.deployment: (
+                RequestType.DEPLOYMENT_LIST,
+                self._wrap_single_deployment,
+                self.deployment_list_fetched,
+                {"Accept": "application/geo+json"},
+            ),
+            LinkRelation.parent_deployment: (
+                RequestType.DEPLOYMENT_LIST,
+                self._wrap_single_deployment,
+                self.deployment_list_fetched,
+                {"Accept": "application/geo+json"},
+            ),
+            OgcLinkRelation.parent_deployment: (
+                RequestType.DEPLOYMENT_LIST,
+                self._wrap_single_deployment,
+                self.deployment_list_fetched,
+                {"Accept": "application/geo+json"},
+            ),
+            # deployments (list)
             LinkRelation.deployments: (
                 RequestType.DEPLOYMENT_LIST,
                 models.DeploymentList.from_api_response,
@@ -351,6 +540,44 @@ class OacsClient(QtCore.QObject):
                 self.deployment_list_fetched,
                 {"Accept": "application/geo+json"},
             ),
+            LinkRelation.sub_deployments: (
+                RequestType.DEPLOYMENT_LIST,
+                models.DeploymentList.from_api_response,
+                self.deployment_list_fetched,
+                {"Accept": "application/geo+json"},
+            ),
+            OgcLinkRelation.sub_deployments: (
+                RequestType.DEPLOYMENT_LIST,
+                models.DeploymentList.from_api_response,
+                self.deployment_list_fetched,
+                {"Accept": "application/geo+json"},
+            ),
+            # single sampling feature (wrapped as one-item list)
+            LinkRelation.sampling_feature: (
+                RequestType.SAMPLING_FEATURE_LIST,
+                self._wrap_single_sampling_feature,
+                self.sampling_feature_list_fetched,
+                {"Accept": "application/geo+json"},
+            ),
+            OgcLinkRelation.sampling_feature: (
+                RequestType.SAMPLING_FEATURE_LIST,
+                self._wrap_single_sampling_feature,
+                self.sampling_feature_list_fetched,
+                {"Accept": "application/geo+json"},
+            ),
+            LinkRelation.sample_of: (
+                RequestType.SAMPLING_FEATURE_LIST,
+                self._wrap_single_sampling_feature,
+                self.sampling_feature_list_fetched,
+                {"Accept": "application/geo+json"},
+            ),
+            OgcLinkRelation.sample_of: (
+                RequestType.SAMPLING_FEATURE_LIST,
+                self._wrap_single_sampling_feature,
+                self.sampling_feature_list_fetched,
+                {"Accept": "application/geo+json"},
+            ),
+            # sampling features (list)
             LinkRelation.sampling_features: (
                 RequestType.SAMPLING_FEATURE_LIST,
                 models.SamplingFeatureList.from_api_response,
@@ -363,6 +590,33 @@ class OacsClient(QtCore.QObject):
                 self.sampling_feature_list_fetched,
                 {"Accept": "application/geo+json"},
             ),
+            # single procedure (wrapped as one-item list)
+            LinkRelation.procedure: (
+                RequestType.PROCEDURE_LIST,
+                self._wrap_single_procedure,
+                self.procedure_list_fetched,
+                {"Accept": "application/geo+json"},
+            ),
+            OgcLinkRelation.procedure: (
+                RequestType.PROCEDURE_LIST,
+                self._wrap_single_procedure,
+                self.procedure_list_fetched,
+                {"Accept": "application/geo+json"},
+            ),
+            # procedures (list)
+            LinkRelation.procedures: (
+                RequestType.PROCEDURE_LIST,
+                models.ProcedureList.from_api_response,
+                self.procedure_list_fetched,
+                {"Accept": "application/geo+json"},
+            ),
+            OgcLinkRelation.procedures: (
+                RequestType.PROCEDURE_LIST,
+                models.ProcedureList.from_api_response,
+                self.procedure_list_fetched,
+                {"Accept": "application/geo+json"},
+            ),
+            # datastreams (list)
             LinkRelation.data_streams: (
                 RequestType.DATASTREAM_LIST,
                 models.DataStreamList.from_api_response,
@@ -448,8 +702,14 @@ class OacsClient(QtCore.QObject):
         query_items = {
             **(search_params.query or {})
         }
+        log_message(f"{list(query_items.items())}")
         if len(query_items) > 0:
-            request_query.setQueryItems(list(query_items.items()))
+            for k, v in query_items.items():
+                if isinstance(v, list):
+                    for i in v:
+                        request_query.addQueryItem(k, i)
+                else:
+                    request_query.addQueryItem(k, v)
         if search_params.url_or_relative_path.startswith("/"):
             request_url = QtCore.QUrl(
                 f"{connection.base_url}{search_params.url_or_relative_path}")

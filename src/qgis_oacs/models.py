@@ -50,6 +50,12 @@ class SystemType(enum.Enum):
             self.SYSTEM: IconPath.system_type_system,
         }.get(self, IconPath.system_type_system)
 
+    def to_search_query_params(self) -> list[str]:
+        return [
+                f"sosa:{self.value.capitalize()}",
+                f"http://www.w3.org/ns/sosa/{self.value.capitalize()}",
+        ]
+
 
 class AssetType(enum.Enum):
     EQUIPMENT = "equipment"
@@ -133,24 +139,24 @@ class ProcedureType(enum.Enum):
 
 @dataclasses.dataclass(frozen=True)
 class TimePeriod:
-    start: typing.Literal["now"] | dt.datetime
-    end: typing.Literal["now"] | dt.datetime
+    start: dt.datetime | None
+    end: dt.datetime | None
 
     @classmethod
     def from_api_response(cls, value: typing.Sequence[str]) -> "TimePeriod":
         return cls(
             start=(
                 parse_raw_rfc3339_datetime(raw_start)
-                if (raw_start := value[0]) != "now" else raw_start
+                if (raw_start := value[0]) not in ("..", "now") else None
             ),
             end=(
                 parse_raw_rfc3339_datetime(raw_end)
-                if (raw_end := value[1]) != "now" else raw_end
+                if (raw_end := value[1]) not in ("..", "now") else None
             ),
         )
 
     def as_renderable_property(self) -> str:
-        return f"{self.start} to {self.end}"
+        return f"{self.start or ''} to {self.end or ''}"
 
 
 @dataclasses.dataclass(frozen=True)
@@ -176,6 +182,32 @@ class Link:
             type=response_content.get("type"),
             title=response_content.get("title"),
         )
+
+    @classmethod
+    def from_inline_property(
+            cls,
+            prop_key: str,
+            raw: dict,
+            rel_override: str | None = None,
+    ) -> "Link":
+        """Parse a link from an inline ``prop@link`` API property.
+
+        ``rel_override`` always sets the rel, overriding whatever the server
+        provides.  Use it for inline properties whose resource type is defined
+        by the property name, not by the server-supplied rel.  Applied before
+        title derivation so the title reflects the correct type,
+        e.g. ``systemKind@link`` + ``rel_override="procedure"``
+        → ``"systemKind (procedure)"``.
+        """
+        link = cls.from_api_response(raw)
+        if rel_override:
+            link = dataclasses.replace(link, rel=rel_override)
+        if not link.title:
+            prop_label = prop_key.removesuffix("@link")
+            rel_suffix = (link.rel or "").rsplit(":", 1)[-1]
+            title = f"{prop_label} ({rel_suffix})" if rel_suffix else prop_label
+            link = dataclasses.replace(link, title=title)
+        return link
 
 
 @dataclasses.dataclass(frozen=True)
@@ -301,6 +333,8 @@ class OacsItem(abc.ABC):
     name: str
     description: str | None = None
 
+    collection_path: typing.ClassVar[str]
+
     @classmethod
     @abc.abstractmethod
     def from_api_response(cls, response_content: dict) -> "OacsItem": ...
@@ -314,6 +348,9 @@ class OacsItem(abc.ABC):
 
     def get_relevant_links(self) -> list[Link]:
         return []
+
+    def get_detail_url(self, base_url: str) -> str:
+        return f"{base_url.rstrip('/')}{self.collection_path}/{self.id_}"
 
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
@@ -329,7 +366,8 @@ class OacsFeature(OacsItem, abc.ABC):
         properties = {
             **super().get_renderable_properties(),
             "UID": self.uid,
-            **{k.capitalize(): str(v) for k, v in self.additional_properties.items()}
+            **({} if self.additional_properties is None
+               else {k.capitalize(): str(v) for k, v in self.additional_properties.items()}),
         }
         return {k: v for k, v in properties.items() if v is not None}
 
@@ -366,7 +404,9 @@ class OacsFeature(OacsItem, abc.ABC):
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
 class System(OacsFeature):
-    feature_type: SystemType | None
+    collection_path: typing.ClassVar[str] = "/systems"
+    feature_type: SystemType
+    # feature_type: SystemType | None
     asset_type: AssetType | None
     valid_time: TimePeriod
     system_kind_link: Link
@@ -396,7 +436,10 @@ class System(OacsFeature):
                     else None
                 ),
                 "system_kind_link": (
-                    Link.from_api_response(raw_system_kind)
+                    Link.from_inline_property(
+                        "systemKind@link", raw_system_kind,
+                        rel_override=LinkRelation.procedure,
+                    )
                     if (raw_system_kind := response_content["properties"].get("systemKind@link", None))
                     else None
                 ),
@@ -430,13 +473,16 @@ class System(OacsFeature):
             OgcLinkRelation.procedures,
             OgcLinkRelation.data_streams,
             OgcLinkRelation.control_streams,
-
         )
-        return [link for link in self.links if link.rel in relevant_link_rels]
+        links = [link for link in self.links if link.rel in relevant_link_rels]
+        if self.system_kind_link:
+            links.append(self.system_kind_link)
+        return links
 
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
 class Deployment(OacsFeature):
+    collection_path: typing.ClassVar[str] = "/deployments"
     valid_time: TimePeriod
     platform_link: Link | None = None
     deployed_systems_link: list[Link] | None = None
@@ -449,7 +495,10 @@ class Deployment(OacsFeature):
         )
         try:
             deployed_systems_link = [
-                Link.from_api_response(raw_system_link)
+                Link.from_inline_property(
+                    "deployedSystems@link", raw_system_link,
+                    rel_override=LinkRelation.system,
+                )
                 for raw_system_link in response_content["properties"].get("deployedSystems@link", [])
             ]
         except (TypeError, KeyError) as err:
@@ -466,7 +515,10 @@ class Deployment(OacsFeature):
                 else None
             ),
             platform_link=(
-                Link.from_api_response(raw_system_kind)
+                Link.from_inline_property(
+                    "platform@link", raw_system_kind,
+                    rel_override=LinkRelation.platform,
+                )
                 if (raw_system_kind := response_content["properties"].get("platform@link", None))
                 else None
             ),
@@ -502,11 +554,17 @@ class Deployment(OacsFeature):
         #
         # https://github.com/opengeospatial/ogcapi-connected-systems/issues/173
         #
-        return [link for link in self.links if link.rel in relevant_link_rels]
+        links = [link for link in self.links if link.rel in relevant_link_rels]
+        if self.platform_link:
+            links.append(self.platform_link)
+        if self.deployed_systems_link:
+            links.extend(self.deployed_systems_link)
+        return links
 
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
 class SamplingFeature(OacsFeature):
+    collection_path: typing.ClassVar[str] = "/samplingFeatures"
     valid_time: TimePeriod
     sampled_feature_link: Link
 
@@ -524,7 +582,10 @@ class SamplingFeature(OacsFeature):
                 else None
             ),
             sampled_feature_link=(
-                Link.from_api_response(raw_system_kind)
+                Link.from_inline_property(
+                    "sampledFeature@link", raw_system_kind,
+                    rel_override=LinkRelation.sampled_feature,
+                )
                 if (raw_system_kind := response_content["properties"].pop("sampledFeature@link", None))
                 else None
             )
@@ -555,11 +616,15 @@ class SamplingFeature(OacsFeature):
         #
         # https://github.com/opengeospatial/ogcapi-connected-systems/issues/173
         #
-        return [link for link in self.links if link.rel in relevant_link_rels]
+        links = [link for link in self.links if link.rel in relevant_link_rels]
+        if self.sampled_feature_link:
+            links.append(self.sampled_feature_link)
+        return links
 
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
 class Procedure(OacsFeature):
+    collection_path: typing.ClassVar[str] = "/procedures"
     geometry: None
     feature_type: ProcedureType
     valid_time: TimePeriod | None
@@ -596,7 +661,14 @@ class Procedure(OacsFeature):
         return {k: v for k, v in properties.items() if v is not None}
 
     def get_relevant_links(self) -> list[Link]:
-        relevant_link_rels = ()
+        relevant_link_rels = (
+            LinkRelation.implementing_systems,
+            OgcLinkRelation.implementing_systems,
+        )
+        # we look for both `rel=<name>` and `rel=ogc-rel:<name>` because of:
+        #
+        # https://github.com/opengeospatial/ogcapi-connected-systems/issues/173
+        #
         return [link for link in self.links if link.rel in relevant_link_rels]
 
 
@@ -650,6 +722,7 @@ class DataStreamObservedProperty:
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
 class DataStream(OacsItem):
+    collection_path: typing.ClassVar[str] = "/datastreams"
     formats: list[str]
     system_link: Link
     observed_properties: list[DataStreamObservedProperty] | None = None
@@ -667,6 +740,7 @@ class DataStream(OacsItem):
     feature_of_interest_link: Link | None = None
     sampling_feature_link: Link | None = None
     schema: ObservationSchemaJson | None = None
+    links: list[Link] = dataclasses.field(default_factory=list)
 
     @classmethod
     def from_api_response(cls, response_content: dict) -> "DataStream":
@@ -674,7 +748,8 @@ class DataStream(OacsItem):
             id_=response_content["id"],
             name=response_content["name"],
             formats=response_content["formats"],
-            system_link=Link.from_api_response(response_content["system@link"]),
+            system_link=Link.from_api_response(
+                {"rel": LinkRelation.system, **response_content["system@link"]}),
             observed_properties=[
                 DataStreamObservedProperty.from_api_response(prop)
                 for prop in raw_observed_props
@@ -695,22 +770,26 @@ class DataStream(OacsItem):
             result_time_interval=response_content.get("resultTimeInterval"),
             output_name=response_content.get("outputName"),
             procedure_link=(
-                Link.from_api_response(procedure_raw_link)
+                Link.from_api_response({"rel": LinkRelation.procedure, **procedure_raw_link})
                 if (procedure_raw_link := response_content.get("procedure@link")) else None
             ),
             deployment_link=(
-                Link.from_api_response(deployment_raw_link)
+                Link.from_api_response({"rel": LinkRelation.deployment, **deployment_raw_link})
                 if (deployment_raw_link := response_content.get("deployment@link")) else None
             ),
             feature_of_interest_link=(
-                Link.from_api_response(foi_raw_link)
+                Link.from_api_response({"rel": LinkRelation.feature_of_interest, **foi_raw_link})
                 if (foi_raw_link := response_content.get("featureOfInterest@link")) else None
             ),
             sampling_feature_link=(
-                Link.from_api_response(sampling_feat_raw_link)
+                Link.from_api_response({"rel": LinkRelation.sampling_feature, **sampling_feat_raw_link})
                 if (sampling_feat_raw_link := response_content.get("samplingFeature@link")) else None
             ),
             schema=None,
+            links=[
+                Link.from_api_response(raw_link)
+                for raw_link in response_content.get("links", [])
+            ],
         )
 
     def get_renderable_properties(self) -> dict[str, str]:
@@ -721,7 +800,22 @@ class DataStream(OacsItem):
         return {k: v for k, v in properties.items() if v is not None}
 
     def get_relevant_links(self) -> list[Link]:
-        return []
+        return [
+            link for link in (
+                self.system_link,
+                self.procedure_link,
+                self.deployment_link,
+                self.sampling_feature_link,
+                self.feature_of_interest_link,
+            )
+            if link is not None
+        ]
+
+    def get_observations_link(self) -> "Link | None":
+        for link in self.links:
+            if link.rel in (LinkRelation.observations, OgcLinkRelation.observations):
+                return link
+        return None
 
 
 ItemType = typing.TypeVar("ItemType", bound=OacsItem)
@@ -788,3 +882,21 @@ class OacsItemList(typing.Generic[ItemType]):
 @dataclasses.dataclass(frozen=True)
 class DataStreamList(OacsItemList):
     item_type = DataStream
+
+
+@dataclasses.dataclass(frozen=True)
+class Observation:
+    """A single observation record.
+
+    ``media_type`` is taken from the Content-Type of the enclosing response so
+    callers can branch on format (JSON, OM+JSON, CSV, …) without re-inspecting
+    the payload.
+    """
+    payload: bytes
+    media_type: str
+
+
+@dataclasses.dataclass(frozen=True)
+class ObservationList:
+    items: list[Observation]
+    datastream: "DataStream | None" = None
