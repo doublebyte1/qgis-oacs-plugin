@@ -192,7 +192,7 @@ class Link:
     ) -> "Link":
         """Parse a link from an inline ``prop@link`` API property.
 
-        ``rel_override`` always sets the rel, overriding whatever the server
+        `rel_override` always sets the rel, overriding whatever the server
         provides.  Use it for inline properties whose resource type is defined
         by the property name, not by the server-supplied rel.  Applied before
         title derivation so the title reflects the correct type,
@@ -202,12 +202,16 @@ class Link:
         link = cls.from_api_response(raw)
         if rel_override:
             link = dataclasses.replace(link, rel=rel_override)
-        if not link.title:
-            prop_label = prop_key.removesuffix("@link")
-            rel_suffix = (link.rel or "").rsplit(":", 1)[-1]
-            title = f"{prop_label} ({rel_suffix})" if rel_suffix else prop_label
-            link = dataclasses.replace(link, title=title)
-        return link
+        prop_label = prop_key.removesuffix("@link")
+        rel_suffix = (link.rel or "").rsplit(":", 1)[-1]
+        if prop_label ==  rel_suffix:
+            title_prefix = prop_label
+        else:
+            title_prefix = f"{prop_label} ({rel_suffix})" if rel_suffix else prop_label
+        if link.title:
+            return dataclasses.replace(link, title=f"{title_prefix} - {link.title}")
+        else:
+            return dataclasses.replace(link, title=title_prefix)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -339,6 +343,9 @@ class OacsItem(abc.ABC):
     @abc.abstractmethod
     def from_api_response(cls, response_content: dict) -> "OacsItem": ...
 
+    @abc.abstractmethod
+    def get_icon_path(self) -> str: ...
+
     def get_renderable_properties(self) -> dict[str, str]:
         properties = {
             "Name": self.name,
@@ -351,6 +358,9 @@ class OacsItem(abc.ABC):
 
     def get_detail_url(self, base_url: str) -> str:
         return f"{base_url.rstrip('/')}{self.collection_path}/{self.id_}"
+
+    def get_type_label(self) -> str:
+        return self.__class__.__name__
 
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
@@ -370,6 +380,12 @@ class OacsFeature(OacsItem, abc.ABC):
                else {k.capitalize(): str(v) for k, v in self.additional_properties.items()}),
         }
         return {k: v for k, v in properties.items() if v is not None}
+
+    def get_type_label(self) -> str:
+        base = (self.feature_type or "").rsplit("/")[-1].rsplit(":")[-1]
+        if not base or base.lower() == self.__class__.__name__.lower():
+            return self.__class__.__name__
+        return f"{base} ({self.__class__.__name__})"
 
     @staticmethod
     def _parse_api_response(
@@ -405,8 +421,7 @@ class OacsFeature(OacsItem, abc.ABC):
 @dataclasses.dataclass(frozen=True, kw_only=True)
 class System(OacsFeature):
     collection_path: typing.ClassVar[str] = "/systems"
-    feature_type: SystemType
-    # feature_type: SystemType | None
+    feature_type: SystemType | None
     asset_type: AssetType | None
     valid_time: TimePeriod
     system_kind_link: Link
@@ -479,6 +494,14 @@ class System(OacsFeature):
             links.append(self.system_kind_link)
         return links
 
+    def get_type_label(self) -> str:
+        return (
+            f"{self.feature_type.value.capitalize()} (System)" if self.feature_type else "System"
+        )
+
+    def get_icon_path(self) -> str:
+        return self.feature_type.get_icon_path() if self.feature_type else IconPath.system_type_system
+
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
 class Deployment(OacsFeature):
@@ -525,13 +548,16 @@ class Deployment(OacsFeature):
             deployed_systems_link=deployed_systems_link
         )
 
+    def get_icon_path(self) -> str:
+        return IconPath.deployment
+
     def get_renderable_properties(self) -> dict[str, str]:
         properties = {
             **super().get_renderable_properties(),
             "Feature Type": (self.feature_type or "deployment").upper(),
             "Valid Time": self.valid_time.as_renderable_property() if self.valid_time else "Unknown",
         }
-        return {k: v for k, v in properties if v is not None}
+        return {k: v for k, v in properties.items() if v is not None}
 
     def get_relevant_links(self) -> list[Link]:
         relevant_link_rels = (
@@ -590,6 +616,9 @@ class SamplingFeature(OacsFeature):
                 else None
             )
         )
+
+    def get_icon_path(self) -> str:
+        return IconPath.sampling_feature
 
     def get_renderable_properties(self) -> dict[str, str]:
         properties = {
@@ -651,6 +680,12 @@ class Procedure(OacsFeature):
                 "geometry": None
             }
         )
+
+    def get_icon_path(self) -> str:
+        return IconPath.procedure_type_procedure
+
+    def get_type_label(self) -> str:
+        return self.feature_type.value.replace("_", " ").title()
 
     def get_renderable_properties(self) -> dict[str, str]:
         properties = {
@@ -791,6 +826,12 @@ class DataStream(OacsItem):
                 for raw_link in response_content.get("links", [])
             ],
         )
+
+    def get_icon_path(self) -> str:
+        return self.datastream_type.get_icon_path() if self.datastream_type else IconPath.datastream
+
+    def get_type_label(self) -> str:
+        return self.datastream_type.value.capitalize() if self.datastream_type else "Datastream"
 
     def get_renderable_properties(self) -> dict[str, str]:
         properties = {

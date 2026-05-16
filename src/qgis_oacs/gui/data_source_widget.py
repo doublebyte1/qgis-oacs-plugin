@@ -17,8 +17,8 @@ from ..client import (
 )
 from ..settings import settings_manager
 from .data_source_connection_dialog import DataSourceConnectionDialog
-from .search_widgets.system_tree_widget import SearchSystemTreeWidget
-from .search_widgets.resource_tree_widgets import (
+from .resource_tree_widgets import (
+    SearchSystemTreeWidget,
     SearchDeploymentTreeWidget,
     SearchSamplingFeatureTreeWidget,
     SearchProcedureTreeWidget,
@@ -61,15 +61,10 @@ class OacsDataSourceWidget(qgis.gui.QgsAbstractDataSourceWidget, DataSourceWidge
         self.layout().insertLayout(4, self.grid_layout)
 
         self.resource_type_pages = {
-            # "systems": SearchSystemItemsWidget(),
             "systems": SearchSystemTreeWidget(),
-            # "deployments": SearchDeploymentItemsWidget(),
             "deployments": SearchDeploymentTreeWidget(),
-            # "sampling features": SearchSamplingFeatureItemsWidget(),
             "sampling features": SearchSamplingFeatureTreeWidget(),
-            # "procedures": SearchProcedureItemsWidget(),
             "procedures": SearchProcedureTreeWidget(),
-            # "datastreams": SearchDataStreamItemsWidget(),
             "datastreams": SearchDataStreamTreeWidget(),
         }
         self.resource_types_tw.clear()

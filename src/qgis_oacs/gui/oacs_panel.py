@@ -35,14 +35,6 @@ _LINK_ROLE = QtCore.Qt.UserRole + 2           # Link (for group items)
 _CONN_ID_ROLE = QtCore.Qt.UserRole + 3        # uuid.UUID (connection_id)
 _ENTRY_ROLE = QtCore.Qt.UserRole + 4          # OacsLayerEntry (for loaded resource items)
 
-_RESOURCE_TYPE_TO_ICON: dict[str, str] = {
-    "System": IconPath.system_type_system,
-    "Deployment": IconPath.deployment,
-    "SamplingFeature": IconPath.sampling_feature,
-    "Procedure": IconPath.procedure_type_procedure,
-    "DataStream": IconPath.datastream,
-}
-
 
 def _connection_label(conn_id: uuid.UUID, fallback_url: str) -> str:
     for conn in settings_manager.list_data_source_connections():
@@ -147,10 +139,9 @@ class OacsResourcePanel(QtWidgets.QDockWidget):
 
     def _make_loaded_resource_item(
             self, entry: OacsLayerEntry) -> QtWidgets.QTreeWidgetItem:
-        icon_path = _RESOURCE_TYPE_TO_ICON.get(entry.resource_type, IconPath.system_type_system)
         item = QtWidgets.QTreeWidgetItem(
-            [entry.layer_name, entry.resource_type.upper()], _LOADED_RESOURCE_TYPE)
-        item.setIcon(0, utils.create_icon_from_svg(icon_path, 16))
+            [entry.layer_name, entry.get_type_label()], _LOADED_RESOURCE_TYPE)
+        item.setIcon(0, utils.create_icon_from_svg(entry.get_icon_path(), 16))
         item.setData(0, _CONN_ID_ROLE, entry.connection_id)
         item.setData(0, _ENTRY_ROLE, entry)
         item.setData(0, _DETAILS_FETCHED_ROLE, False)
@@ -181,48 +172,11 @@ class OacsResourcePanel(QtWidgets.QDockWidget):
             oacs_item: models.OacsItem,
             conn_id: uuid.UUID,
     ) -> QtWidgets.QTreeWidgetItem:
-        if isinstance(oacs_item, models.SamplingFeature):
-            type_label = (
-                oacs_item.feature_type.upper()
-                if isinstance(oacs_item.feature_type, str)
-                else (oacs_item.feature_type.value.upper()
-                      if oacs_item.feature_type else "SAMPLING_FEATURE")
-            )
-            icon_path = IconPath.sampling_feature
-        elif isinstance(oacs_item, models.DataStream):
-            type_label = (
-                oacs_item.datastream_type.value.upper()
-                if oacs_item.datastream_type else "DATASTREAM"
-            )
-            icon_path = (
-                oacs_item.datastream_type.get_icon_path()
-                if oacs_item.datastream_type else IconPath.datastream
-            )
-        elif isinstance(oacs_item, models.Deployment):
-            type_label = (oacs_item.feature_type or "DEPLOYMENT").upper()
-            icon_path = IconPath.deployment
-        elif isinstance(oacs_item, models.Procedure):
-            type_label = (
-                oacs_item.feature_type.value.upper()
-                if oacs_item.feature_type else "PROCEDURE"
-            )
-            icon_path = IconPath.procedure_type_procedure
-        elif isinstance(oacs_item, models.System):
-            type_label = (
-                oacs_item.feature_type.value.upper()
-                if oacs_item.feature_type else "SYSTEM"
-            )
-            icon_path = (
-                oacs_item.feature_type.get_icon_path()
-                if oacs_item.feature_type else IconPath.system_type_system
-            )
-        else:
-            type_label = type(oacs_item).__name__.upper()
-            icon_path = IconPath.system_type_system
-
         item = QtWidgets.QTreeWidgetItem(
-            [oacs_item.name, type_label], _BROWSED_RESOURCE_TYPE)
-        item.setIcon(0, utils.create_icon_from_svg(icon_path, 14))
+            [oacs_item.name, oacs_item.get_type_label()],
+            _BROWSED_RESOURCE_TYPE
+        )
+        item.setIcon(0, utils.create_icon_from_svg(oacs_item.get_icon_path(), 14))
         item.setData(0, _ITEM_DATA_ROLE, oacs_item)
         item.setData(0, _CONN_ID_ROLE, conn_id)
         item.setData(0, _DETAILS_FETCHED_ROLE, False)
