@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Added action for opening data source selector from the plugin menu
+- Support http://www.w3.org/ns/ssn/System as a valid type identifier for Systems
+
+### Fixed
+- Broken rendering of Deployment properties
+
 
 ## [0.1.0] - 2026-05-15
 

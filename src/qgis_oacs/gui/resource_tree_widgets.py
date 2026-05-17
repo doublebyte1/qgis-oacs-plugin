@@ -14,12 +14,12 @@ from qgis.PyQt import (
     QtWidgets,
 )
 
-from ... import models, utils
-from ...client import oacs_client, OacsRequestMetadata
-from ...constants import IconPath, LinkRelation, OgcLinkRelation, LINK_REL_TO_ICON
-from ...settings import settings_manager
-from ..abc import AbstractQWidgetMeta
-from ..detail_panel import ResourceDetailPanel
+from .. import models, utils
+from ..client import oacs_client, OacsRequestMetadata
+from ..constants import IconPath, LINK_REL_TO_ICON
+from ..settings import settings_manager
+from .abc import AbstractQWidgetMeta
+from .detail_panel import ResourceDetailPanel
 
 # ---------------------------------------------------------------------------
 # Shared constants
@@ -34,10 +34,6 @@ _ITEM_DATA_ROLE = QtCore.Qt.UserRole
 _DETAILS_FETCHED_ROLE = QtCore.Qt.UserRole + 1
 _LINK_ROLE = QtCore.Qt.UserRole + 2
 
-
-# ---------------------------------------------------------------------------
-# Abstract base widget
-# ---------------------------------------------------------------------------
 
 class OacsResourceTreeWidgetBase(
     QtWidgets.QWidget,
@@ -333,14 +329,17 @@ class OacsResourceTreeWidgetBase(
     def _make_expandable_resource_item(
             self,
             item: models.OacsItem,
-            type_label: str,
-            icon_path: str,
     ) -> QtWidgets.QTreeWidgetItem:
         tw_item = QtWidgets.QTreeWidgetItem(
-            [item.name, type_label], _RESOURCE_ITEM_TYPE)
+            [
+                item.name,
+                item.get_type_label(),
+            ],
+            _RESOURCE_ITEM_TYPE
+        )
         tw_item.setData(0, _ITEM_DATA_ROLE, item)
         tw_item.setData(0, _DETAILS_FETCHED_ROLE, False)
-        tw_item.setIcon(0, utils.create_icon_from_svg(icon_path, 16))
+        tw_item.setIcon(0, utils.create_icon_from_svg(item.get_icon_path(), 16))
         if isinstance(item, models.OacsFeature):
             tw_item.setToolTip(0, item.uid)
         if self._items_have_relations:
@@ -360,51 +359,12 @@ class OacsResourceTreeWidgetBase(
 
     def _make_related_item(
             self, oacs_item: models.OacsItem) -> QtWidgets.QTreeWidgetItem:
-        if isinstance(oacs_item, models.SamplingFeature):
-            type_label = (
-                oacs_item.feature_type.upper()
-                if isinstance(oacs_item.feature_type, str)
-                else (oacs_item.feature_type.value.upper()
-                      if oacs_item.feature_type else "SAMPLING_FEATURE")
-            )
-            icon_path = IconPath.sampling_feature
-        elif isinstance(oacs_item, models.DataStream):
-            type_label = (
-                oacs_item.datastream_type.value.upper()
-                if oacs_item.datastream_type else "DATASTREAM"
-            )
-            icon_path = (
-                oacs_item.datastream_type.get_icon_path()
-                if oacs_item.datastream_type else IconPath.datastream
-            )
-        elif isinstance(oacs_item, models.Deployment):
-            type_label = (oacs_item.feature_type or "DEPLOYMENT").upper()
-            icon_path = IconPath.deployment
-        elif isinstance(oacs_item, models.Procedure):
-            type_label = (
-                oacs_item.feature_type.value.upper()
-                if oacs_item.feature_type else "PROCEDURE"
-            )
-            icon_path = IconPath.procedure_type_procedure
-        elif isinstance(oacs_item, models.System):
-            type_label = (
-                oacs_item.feature_type.value.upper()
-                if oacs_item.feature_type else "SYSTEM"
-            )
-            icon_path = (
-                oacs_item.feature_type.get_icon_path()
-                if oacs_item.feature_type else IconPath.system_type_system
-            )
-        else:
-            type_label = ""
-            icon_path = IconPath.system_type_system
-
         item = QtWidgets.QTreeWidgetItem(
-            [oacs_item.name, type_label], _RELATED_ITEM_TYPE)
+            [oacs_item.name, oacs_item.get_type_label()], _RELATED_ITEM_TYPE)
         item.setData(0, _ITEM_DATA_ROLE, oacs_item)
         item.setData(0, _DETAILS_FETCHED_ROLE, False)
         item.setChildIndicatorPolicy(QtWidgets.QTreeWidgetItem.ShowIndicator)
-        item.setIcon(0, utils.create_icon_from_svg(icon_path, 14))
+        item.setIcon(0, utils.create_icon_from_svg(oacs_item.get_icon_path(), 14))
         if isinstance(oacs_item, models.OacsFeature):
             item.setToolTip(0, oacs_item.uid)
         return item
@@ -489,6 +449,55 @@ class OacsResourceTreeWidgetBase(
 # Concrete implementations
 # ---------------------------------------------------------------------------
 
+class SearchSystemTreeWidget(OacsResourceTreeWidgetBase):
+    """Tree-based Systems browser with type filter and relation drill-down."""
+
+    _resource_label = "systems"
+    _search_placeholder = "Search systems…"
+
+    def _build_extra_search_controls(
+            self, bar_layout: QtWidgets.QHBoxLayout) -> None:
+        self._type_cb = QtWidgets.QComboBox()
+        self._type_cb.addItem("All types", None)
+        for stype in models.SystemType:
+            self._type_cb.addItem(
+                QtGui.QIcon(stype.get_icon_path()), stype.value.upper(), stype)
+        bar_layout.addWidget(self._type_cb)
+
+    def _search_controls(self) -> tuple[QtWidgets.QWidget, ...]:
+        return (self._free_text_le, self._type_cb, self._search_pb)
+
+    def _connect_type_signals(self) -> None:
+        oacs_client.system_list_fetched.connect(self._on_resource_list_fetched)
+
+    def _initiate_search(self) -> None:
+        connection = settings_manager.get_current_data_source_connection()
+        stype = self._type_cb.currentData()
+        meta = oacs_client.initiate_system_list_search(
+            connection,
+            q_filter=self._free_text_le.text() or None,
+            system_type=[stype] if stype else None,
+        )
+        self._current_search_id = meta.request_id
+
+    def _fetch_item_details(
+            self,
+            tree_item: QtWidgets.QTreeWidgetItem,
+            item_id: str,
+    ) -> None:
+        if tree_item in self._pending_detail_requests.values():
+            return
+        connection = settings_manager.get_current_data_source_connection()
+        if not connection:
+            return
+        meta = oacs_client.initiate_system_item_fetch(item_id, connection)
+        self._pending_detail_requests[meta.request_id] = tree_item
+
+    def _make_resource_item(
+            self, item: models.System) -> QtWidgets.QTreeWidgetItem:
+        return self._make_expandable_resource_item(item)
+
+
 class SearchDeploymentTreeWidget(OacsResourceTreeWidgetBase):
 
     _resource_label = "deployments"
@@ -519,11 +528,8 @@ class SearchDeploymentTreeWidget(OacsResourceTreeWidgetBase):
         self._pending_detail_requests[meta.request_id] = tree_item
 
     def _make_resource_item(
-            self, item: models.OacsItem) -> QtWidgets.QTreeWidgetItem:
-        item = item  # type: models.Deployment
-        type_label = (item.feature_type or "DEPLOYMENT").upper()
-        return self._make_expandable_resource_item(
-            item, type_label, IconPath.deployment)
+            self, item: models.Deployment) -> QtWidgets.QTreeWidgetItem:
+        return self._make_expandable_resource_item(item)
 
 
 class SearchSamplingFeatureTreeWidget(OacsResourceTreeWidgetBase):
@@ -557,16 +563,8 @@ class SearchSamplingFeatureTreeWidget(OacsResourceTreeWidgetBase):
         self._pending_detail_requests[meta.request_id] = tree_item
 
     def _make_resource_item(
-            self, item: models.OacsItem) -> QtWidgets.QTreeWidgetItem:
-        item = item  # type: models.SamplingFeature
-        type_label = (
-            item.feature_type.upper()
-            if isinstance(item.feature_type, str)
-            else (item.feature_type.value.upper()
-                  if item.feature_type else "SAMPLING_FEATURE")
-        )
-        return self._make_expandable_resource_item(
-            item, type_label, IconPath.sampling_feature)
+            self, item: models.SamplingFeature) -> QtWidgets.QTreeWidgetItem:
+        return self._make_expandable_resource_item(item)
 
 
 class SearchProcedureTreeWidget(OacsResourceTreeWidgetBase):
@@ -599,14 +597,8 @@ class SearchProcedureTreeWidget(OacsResourceTreeWidgetBase):
         self._current_search_id = meta.request_id
 
     def _make_resource_item(
-            self, item: models.OacsItem) -> QtWidgets.QTreeWidgetItem:
-        item = item  # type: models.Procedure
-        type_label = (
-            item.feature_type.value.upper()
-            if item.feature_type else "PROCEDURE"
-        )
-        return self._make_expandable_resource_item(
-            item, type_label, IconPath.procedure_type_procedure)
+            self, item: models.Procedure) -> QtWidgets.QTreeWidgetItem:
+        return self._make_expandable_resource_item(item)
 
 
 class SearchDataStreamTreeWidget(OacsResourceTreeWidgetBase):
@@ -640,14 +632,5 @@ class SearchDataStreamTreeWidget(OacsResourceTreeWidgetBase):
         self._current_search_id = meta.request_id
 
     def _make_resource_item(
-            self, item: models.OacsItem) -> QtWidgets.QTreeWidgetItem:
-        item = item  # type: models.DataStream
-        type_label = (
-            item.datastream_type.value.upper()
-            if item.datastream_type else "DATASTREAM"
-        )
-        icon_path = (
-            item.datastream_type.get_icon_path()
-            if item.datastream_type else IconPath.datastream
-        )
-        return self._make_expandable_resource_item(item, type_label, icon_path)
+            self, item: models.DataStream) -> QtWidgets.QTreeWidgetItem:
+        return self._make_expandable_resource_item(item)

@@ -6,6 +6,7 @@ import qgis.core
 from qgis.PyQt import QtCore
 
 from .constants import (
+    IconPath,
     OACS_SCHEMA_VERSION_KEY,
     OACS_CONNECTION_ID_KEY,
     OACS_CONNECTION_BASE_URL_KEY,
@@ -30,6 +31,18 @@ class OacsLayerEntry:
     @property
     def entry_key(self) -> tuple[uuid.UUID, str]:
         return (self.connection_id, self.self_link)
+
+    def get_type_label(self) -> str:
+        return self.resource_type
+
+    def get_icon_path(self) -> str:
+        return {
+            "System": IconPath.system_type_system,
+            "Deployment": IconPath.deployment,
+            "SamplingFeature": IconPath.sampling_feature,
+            "Procedure": IconPath.procedure_type_procedure,
+            "DataStream": IconPath.datastream,
+        }.get(self.resource_type, IconPath.main_logo)
 
 
 def _parse_layer(layer: qgis.core.QgsMapLayer) -> OacsLayerEntry | None:
