@@ -79,7 +79,6 @@ class OacsResourcePanel(QtWidgets.QDockWidget):
         self._tree.header().setSectionResizeMode(
             1, QtWidgets.QHeaderView.ResizeToContents)
         self._tree.setUniformRowHeights(True)
-        self._tree.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         splitter.addWidget(self._tree)
 
         self._detail = ResourceDetailPanel()
@@ -109,7 +108,6 @@ class OacsResourcePanel(QtWidgets.QDockWidget):
 
         self._tree.itemExpanded.connect(self._on_item_expanded)
         self._tree.itemSelectionChanged.connect(self._on_selection_changed)
-        self._tree.customContextMenuRequested.connect(self._on_context_menu)
 
     # ----------------------------------------------------------- tree build --
 
@@ -396,45 +394,6 @@ class OacsResourcePanel(QtWidgets.QDockWidget):
 
         else:
             self._detail.clear()
-
-    # -------------------------------------------------------- context menu ---
-
-    def _on_context_menu(self, pos: QtCore.QPoint) -> None:
-        item = self._tree.itemAt(pos)
-        if item is None:
-            return
-        itype = item.type()
-
-        menu = QtWidgets.QMenu(self._tree)
-
-        if itype == _BROWSED_RESOURCE_TYPE:
-            oacs_item: models.OacsItem = item.data(0, _ITEM_DATA_ROLE)
-            if isinstance(oacs_item, models.OacsFeature):
-                load_action = menu.addAction(
-                    utils.create_icon_from_svg(
-                        IconPath.feature_has_geospatial_location
-                        if oacs_item.geometry
-                        else IconPath.feature_does_not_have_geospatial_location,
-                        16,
-                    ),
-                    "Add to map",
-                )
-                load_action.triggered.connect(
-                    lambda: self._load_browsed_item(oacs_item, item))
-
-        if menu.actions():
-            menu.exec_(self._tree.viewport().mapToGlobal(pos))
-
-    # ------------------------------------------------------------ actions ----
-
-    def _load_browsed_item(
-            self,
-            oacs_item: models.OacsFeature,
-            tree_item: QtWidgets.QTreeWidgetItem,
-    ) -> None:
-        conn_id: uuid.UUID = tree_item.data(0, _CONN_ID_ROLE)
-        connection = self._get_connection(conn_id)
-        utils.load_oacs_feature_as_layer(oacs_item, connection=connection)
 
     # ------------------------------------------------------------ helpers ----
 
