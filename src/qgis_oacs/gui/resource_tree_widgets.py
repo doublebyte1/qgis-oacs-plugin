@@ -180,7 +180,7 @@ class OacsResourceTreeWidgetBase(
 
         self._detail = ResourceDetailPanel()
         self._splitter.addWidget(self._detail)
-        self._splitter.setSizes([300, 200])
+        self._splitter.setSizes([230, 370])
 
         root.addWidget(self._splitter, stretch=1)
 
