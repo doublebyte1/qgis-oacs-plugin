@@ -83,7 +83,7 @@ class OacsResourcePanel(QtWidgets.QDockWidget):
 
         self._detail = ResourceDetailPanel()
         splitter.addWidget(self._detail)
-        splitter.setSizes([300, 200])
+        splitter.setSizes([230, 370])
 
         layout.addWidget(splitter)
         self.setWidget(container)

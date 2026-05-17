@@ -1,6 +1,6 @@
 # QGIS OACS Plugin
 
-![Inspirational screenshot](images/inspirational-screenshot.png)
+![Inspirational screenshot](images/qgis-oacs-motivational.png)
 
 A [QGIS] plugin for working with [OGC API - Connected Systems] servers
 

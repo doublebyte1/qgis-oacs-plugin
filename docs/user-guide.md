@@ -40,7 +40,9 @@ QGIS OACS plugin has the following components:
 ## OACS Data source selector
 
 The Data source selector is where you configure connections and load resources onto the QGIS map canvas.
-Open it from the QGIS Data Source Manager.
+Open it from the QGIS Data Source Manager, or via **Plugins → OGC API Connected Systems → Open data source selector**.
+
+![QGIS OACS plugin data source selector](images/data-source-selector.png)
 
 
 ### Managing connections
@@ -75,6 +77,8 @@ The OACS Resources panel is a dockable panel that tracks every OACS resource you
 map canvas. It lets you explore related resources without reopening the data source selector.
 It can be shown/hidden by pressing the QGIS OACS button shown in the QGIS toolbar.
 
+![QGIS OACS plugin resource panel](images/oacs-panel.png)
+
 The panel shows a tree, which is organized as:
 
 ```
@@ -88,7 +92,7 @@ Connection
 Expanding any node fetches the corresponding data from the server on the fly. Selecting an item shows
 its metadata in the detail panel at the bottom of the dock.
 
-To load a related resource onto the map, right-click it and choose **Add to map**.
+To load a related resource onto the map, select it and use the **Add to map** button in the detail panel.
 
 
 ## OACS observations panel
@@ -100,6 +104,8 @@ The panel shows:
 
 - The name of the datastream whose observations are being displayed.
 - The observation payloads as plain text, pretty-printed if the content is JSON.
+
+![QGIS OACS plugin observations panel](images/observations-panel.png)
 
 Two actions are available:
 
