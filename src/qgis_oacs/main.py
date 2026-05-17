@@ -52,8 +52,18 @@ class QgisOacs:
         self._toggle_action.toggled.connect(self._resource_panel.setVisible)
         self._resource_panel.visibilityChanged.connect(self._toggle_action.setChecked)
 
+        self._open_data_source_action = QtWidgets.QAction(
+            QtGui.QIcon(IconPath.main_logo),
+            "Open data source selector",
+            self.iface.mainWindow(),
+        )
+        self._open_data_source_action.triggered.connect(
+            lambda: self.iface.openDataSourceManagerPage("qgis_oacs_provider")
+        )
+
         self.iface.addToolBarIcon(self._toggle_action)
         self.iface.addPluginToMenu(_PANEL_ACTION_TEXT, self._toggle_action)
+        self.iface.addPluginToMenu(_PANEL_ACTION_TEXT, self._open_data_source_action)
 
         # Set the icon on the plugin's submenu entry in the Plugins menu.
         for menu_action in self.iface.pluginMenu().actions():
@@ -69,6 +79,7 @@ class QgisOacs:
         )
         self.iface.removeToolBarIcon(self._toggle_action)
         self.iface.removePluginMenu(_PANEL_ACTION_TEXT, self._toggle_action)
+        self.iface.removePluginMenu(_PANEL_ACTION_TEXT, self._open_data_source_action)
         self.iface.removeDockWidget(self._resource_panel)
         self._resource_panel.deleteLater()
         self.iface.removeDockWidget(self._observations_panel)

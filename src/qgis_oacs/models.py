@@ -28,17 +28,22 @@ class SystemType(enum.Enum):
 
     @classmethod
     def from_api_response(cls, value: str) -> "SystemType":
+        # OGC API-CS specifies SOSA types (sosa:), but some servers send SSN
+        # types (ssn:) instead. SSN and SOSA are closely aligned — ssn:System
+        # is the parent of all SOSA system types — so we accept both.
         return {
             "http://www.w3.org/ns/sosa/Sensor": SystemType.SENSOR,
             "http://www.w3.org/ns/sosa/Actuator": SystemType.ACTUATOR,
             "http://www.w3.org/ns/sosa/Platform": SystemType.PLATFORM,
             "http://www.w3.org/ns/sosa/Sampler": SystemType.SAMPLER,
             "http://www.w3.org/ns/sosa/System": SystemType.SYSTEM,
+            "http://www.w3.org/ns/ssn/System": SystemType.SYSTEM,
             "sosa:Sensor": SystemType.SENSOR,
             "sosa:Actuator": SystemType.ACTUATOR,
             "sosa:Platform": SystemType.PLATFORM,
             "sosa:Sampler": SystemType.SAMPLER,
             "sosa:System": SystemType.SYSTEM,
+            "ssn:System": SystemType.SYSTEM,
         }[value]
 
     def get_icon_path(self) -> str:
