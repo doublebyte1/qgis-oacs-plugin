@@ -115,10 +115,14 @@ contract.
 
 In order to have a new version of the plugin released:
 
--  Be sure to have updated the `CHANGELOG.md`
+-   Be sure to have updated the `CHANGELOG.md`
 
--  Be sure to have updated the version on the `pyproject.toml` file AND to have synced the uv lockfile after 
-   having made this change
+-   Be sure to have updated the version on the `pyproject.toml` file AND to have synced the uv lockfile after 
+    having made this change. You can do this in one go with:
+
+    ```shell
+    uv version <version>
+    ```
 
 -  Create a new git annotated tag and push it to the repository. **The tag name must
    follow the `v{major}.{minor}.{patch}` convention**, for example:

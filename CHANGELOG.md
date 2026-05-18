@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+
+## [0.2.0] - 2026-05-18
+
 ### Added
 - Added missing icon for procedures
 - Added user guide to docs
@@ -20,12 +23,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 ## Changed
-- Resources with a spatial representation have their icon colorized in order to be easily 
+- Resources with a spatial representation have their icon colorized in order to be easily
   distinguishable
 
 
 ### Removed
-- Context menu for panel resources that allowed loading the resource to QGIS - there is 
+- Context menu for panel resources that allowed loading the resource to QGIS - there is
   already a button for this
 
 
@@ -69,6 +72,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 [unreleased]: https://github.com/byteroad/qgis-oacs-plugin
+[0.2.0]: https://github.com/byteroad/qgis-oacs-plugin/compare/v0.2.0...main
 [0.1.0]: https://github.com/byteroad/qgis-oacs-plugin/compare/v0.1.0...main
 [0.0.4]: https://github.com/byteroad/qgis-oacs-plugin/compare/v0.0.4...main
 [0.0.3]: https://github.com/byteroad/qgis-oacs-plugin/compare/v0.0.3...main
