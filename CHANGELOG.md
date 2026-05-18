@@ -19,6 +19,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   is invalid
 
 
+## Changed
+- Resources with a spatial representation have their icon colorized in order to be easily 
+  distinguishable
+
+
 ### Removed
 - Context menu for panel resources that allowed loading the resource to QGIS - there is 
   already a button for this

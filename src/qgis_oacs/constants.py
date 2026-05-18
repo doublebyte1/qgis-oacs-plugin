@@ -1,5 +1,9 @@
 import dataclasses
 
+from qgis.PyQt import QtGui
+
+SPATIAL_COLOR = QtGui.QColor("#2a9d8f")
+
 
 # ---------------------------------------------------------------------------
 # OACS layer custom property keys
