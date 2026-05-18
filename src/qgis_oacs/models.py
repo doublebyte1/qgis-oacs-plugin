@@ -31,20 +31,23 @@ class SystemType(enum.Enum):
         # OGC API-CS specifies SOSA types (sosa:), but some servers send SSN
         # types (ssn:) instead. SSN and SOSA are closely aligned — ssn:System
         # is the parent of all SOSA system types — so we accept both.
-        return {
-            "http://www.w3.org/ns/sosa/Sensor": SystemType.SENSOR,
-            "http://www.w3.org/ns/sosa/Actuator": SystemType.ACTUATOR,
-            "http://www.w3.org/ns/sosa/Platform": SystemType.PLATFORM,
-            "http://www.w3.org/ns/sosa/Sampler": SystemType.SAMPLER,
-            "http://www.w3.org/ns/sosa/System": SystemType.SYSTEM,
-            "http://www.w3.org/ns/ssn/System": SystemType.SYSTEM,
-            "sosa:Sensor": SystemType.SENSOR,
-            "sosa:Actuator": SystemType.ACTUATOR,
-            "sosa:Platform": SystemType.PLATFORM,
-            "sosa:Sampler": SystemType.SAMPLER,
-            "sosa:System": SystemType.SYSTEM,
-            "ssn:System": SystemType.SYSTEM,
-        }[value]
+        try:
+            return {
+                "http://www.w3.org/ns/sosa/Sensor": SystemType.SENSOR,
+                "http://www.w3.org/ns/sosa/Actuator": SystemType.ACTUATOR,
+                "http://www.w3.org/ns/sosa/Platform": SystemType.PLATFORM,
+                "http://www.w3.org/ns/sosa/Sampler": SystemType.SAMPLER,
+                "http://www.w3.org/ns/sosa/System": SystemType.SYSTEM,
+                "http://www.w3.org/ns/ssn/System": SystemType.SYSTEM,
+                "sosa:Sensor": SystemType.SENSOR,
+                "sosa:Actuator": SystemType.ACTUATOR,
+                "sosa:Platform": SystemType.PLATFORM,
+                "sosa:Sampler": SystemType.SAMPLER,
+                "sosa:System": SystemType.SYSTEM,
+                "ssn:System": SystemType.SYSTEM,
+            }[value]
+        except KeyError as err:
+            raise RuntimeError(f"System type {value!r} not supported") from err
 
     def get_icon_path(self) -> str:
         return {
@@ -73,15 +76,18 @@ class AssetType(enum.Enum):
 
     @classmethod
     def from_api_response(cls, value: str) -> "AssetType":
-        return {
-            "Equipment": AssetType.EQUIPMENT,
-            "Human": AssetType.HUMAN,
-            "LivingThing": AssetType.LIVING_THING,
-            "Simulation": AssetType.SIMULATION,
-            "Process": AssetType.PROCESS,
-            "Group": AssetType.GROUP,
-            "Other": AssetType.OTHER,
-        }[value]
+        try:
+            return {
+                "Equipment": AssetType.EQUIPMENT,
+                "Human": AssetType.HUMAN,
+                "LivingThing": AssetType.LIVING_THING,
+                "Simulation": AssetType.SIMULATION,
+                "Process": AssetType.PROCESS,
+                "Group": AssetType.GROUP,
+                "Other": AssetType.OTHER,
+            }[value]
+        except KeyError as err:
+            raise RuntimeError(f"Asset type {value!r} not supported") from err
 
     def get_icon_path(self) -> str:
         return {
@@ -108,26 +114,36 @@ class ProcedureType(enum.Enum):
 
     @classmethod
     def from_api_response(cls, value: str) -> "ProcedureType":
-        return {
-            "http://www.w3.org/ns/sosa/Procedure": ProcedureType.PROCEDURE,
-            "http://www.w3.org/ns/sosa/ObservingProcedure": ProcedureType.OBSERVING_PROCEDURE,
-            "http://www.w3.org/ns/sosa/SamplingProcedure": ProcedureType.SAMPLING_PROCEDURE,
-            "http://www.w3.org/ns/sosa/ActuatingProcedure": ProcedureType.ACTUATING_PROCEDURE,
-            "http://www.w3.org/ns/sosa/System": ProcedureType.SYSTEM,
-            "http://www.w3.org/ns/sosa/Sensor": ProcedureType.SENSOR,
-            "http://www.w3.org/ns/sosa/Actuator": ProcedureType.ACTUATOR,
-            "http://www.w3.org/ns/sosa/Sampler": ProcedureType.SAMPLER,
-            "http://www.w3.org/ns/sosa/Platform": ProcedureType.PLATFORM,
-            "sosa:Procedure": ProcedureType.PROCEDURE,
-            "sosa:ObservingProcedure": ProcedureType.OBSERVING_PROCEDURE,
-            "sosa:SamplingProcedure": ProcedureType.SAMPLING_PROCEDURE,
-            "sosa:ActuatingProcedure": ProcedureType.ACTUATING_PROCEDURE,
-            "sosa:System": ProcedureType.SYSTEM,
-            "sosa:Sensor": ProcedureType.SENSOR,
-            "sosa:Actuator": ProcedureType.ACTUATOR,
-            "sosa:Sampler": ProcedureType.SAMPLER,
-            "sosa:Platform": ProcedureType.PLATFORM,
-        }[value]
+        try:
+            return {
+                "http://www.w3.org/ns/sosa/Procedure": ProcedureType.PROCEDURE,
+                "http://www.w3.org/ns/sosa/ObservingProcedure": ProcedureType.OBSERVING_PROCEDURE,
+
+                # this below `procedure/observation` type is not strictly conformant
+                # with the OGC API-CS document. However, some servers return it.
+                # Seems likely that it comes from an older version of the standard, so
+                # we map it to ObservingProcedure
+                "http://www.opengis.net/def/procedure/observation": ProcedureType.OBSERVING_PROCEDURE,
+
+                "http://www.w3.org/ns/sosa/SamplingProcedure": ProcedureType.SAMPLING_PROCEDURE,
+                "http://www.w3.org/ns/sosa/ActuatingProcedure": ProcedureType.ACTUATING_PROCEDURE,
+                "http://www.w3.org/ns/sosa/System": ProcedureType.SYSTEM,
+                "http://www.w3.org/ns/sosa/Sensor": ProcedureType.SENSOR,
+                "http://www.w3.org/ns/sosa/Actuator": ProcedureType.ACTUATOR,
+                "http://www.w3.org/ns/sosa/Sampler": ProcedureType.SAMPLER,
+                "http://www.w3.org/ns/sosa/Platform": ProcedureType.PLATFORM,
+                "sosa:Procedure": ProcedureType.PROCEDURE,
+                "sosa:ObservingProcedure": ProcedureType.OBSERVING_PROCEDURE,
+                "sosa:SamplingProcedure": ProcedureType.SAMPLING_PROCEDURE,
+                "sosa:ActuatingProcedure": ProcedureType.ACTUATING_PROCEDURE,
+                "sosa:System": ProcedureType.SYSTEM,
+                "sosa:Sensor": ProcedureType.SENSOR,
+                "sosa:Actuator": ProcedureType.ACTUATOR,
+                "sosa:Sampler": ProcedureType.SAMPLER,
+                "sosa:Platform": ProcedureType.PLATFORM,
+            }[value]
+        except KeyError as err:
+            raise RuntimeError(f"Procedure type {value!r} not supported") from err
 
     def get_icon_path(self) -> str:
         return {
@@ -669,14 +685,15 @@ class Procedure(OacsFeature):
             response_content,
             disregard_properties=("featureType", "validTime")
         )
+        feature_type = (
+            ProcedureType.from_api_response(raw_type)
+            if (raw_type := response_content["properties"].get("featureType", None))
+            else ProcedureType.PROCEDURE
+        )
         return cls(
             **{
                 **common,
-                "feature_type": (
-                    ProcedureType.from_api_response(raw_type)
-                    if (raw_type := response_content["properties"].get("featureType", None))
-                    else ProcedureType.PROCEDURE
-                ),
+                "feature_type": feature_type,
                 "valid_time": (
                     TimePeriod.from_api_response(raw_valid_time)
                     if (raw_valid_time := response_content["properties"].get("validTime", None))
@@ -687,7 +704,7 @@ class Procedure(OacsFeature):
         )
 
     def get_icon_path(self) -> str:
-        return IconPath.procedure_type_procedure
+        return self.feature_type.get_icon_path()
 
     def get_type_label(self) -> str:
         return self.feature_type.value.replace("_", " ").title()
@@ -878,7 +895,7 @@ class OacsFeatureList(typing.Generic[ItemType]):
         for raw_feature in response_content.get("features", []):
             try:
                 items.append(cls.item_type.from_api_response(raw_feature))
-            except ValueError as err:
+            except (RuntimeError, ValueError) as err:
                 log_message(
                     f"Could not parse {raw_feature!r} - {str(err)}",
                     level=qgis.core.Qgis.MessageLevel.Warning
