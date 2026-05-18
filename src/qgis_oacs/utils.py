@@ -95,7 +95,11 @@ def parse_raw_rfc3339_datetime(value: str) -> dt.datetime:
     return dt_out
 
 
-def create_pixmap_from_svg(svg_path: str, target_size: int) -> QtGui.QPixmap:
+def create_pixmap_from_svg(
+        svg_path: str,
+        target_size: int,
+        colorize_with: QtGui.QColor | None = None
+) -> QtGui.QPixmap:
     scale_factor = 3
     render_size = target_size * scale_factor
 
@@ -104,6 +108,12 @@ def create_pixmap_from_svg(svg_path: str, target_size: int) -> QtGui.QPixmap:
     pixmap.fill(QtCore.Qt.GlobalColor.transparent)
     painter = QtGui.QPainter(pixmap)
     renderer.render(painter)
+
+    if colorize_with is not None:
+        painter.setCompositionMode(
+            QtGui.QPainter.CompositionMode.CompositionMode_SourceIn)
+        painter.fillRect(pixmap.rect(), colorize_with)
+
     painter.end()
     return pixmap.scaled(
         target_size, target_size,
@@ -112,21 +122,14 @@ def create_pixmap_from_svg(svg_path: str, target_size: int) -> QtGui.QPixmap:
     )
 
 
-def create_icon_from_svg(svg_path: str, target_size: int = 16) -> QtGui.QIcon:
-    scaled_pixmap = create_pixmap_from_svg(svg_path, target_size)
+def create_icon_from_svg(
+        svg_path: str,
+        target_size: int = 16,
+        colorize_with: QtGui.QColor | None = None,
+) -> QtGui.QIcon:
+    scaled_pixmap = create_pixmap_from_svg(svg_path, target_size, colorize_with)
     return QtGui.QIcon(scaled_pixmap)
 
-
-def set_up_icon(
-        label_widget: QtWidgets.QLabel,
-        icon_path: str,
-        tooltip: str
-) -> None:
-    target_size = 30
-    scaled_pixmap = create_pixmap_from_svg(icon_path, target_size)
-    label_widget.setPixmap(scaled_pixmap)
-    label_widget.setToolTip(tooltip)
-    label_widget.setFixedSize(target_size, target_size)
 
 
 def clear_search_results(layout_displayer: QtWidgets.QLayout) -> None:

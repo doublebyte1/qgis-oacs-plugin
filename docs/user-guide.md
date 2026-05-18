@@ -71,6 +71,11 @@ In each tab:
    (where available) to load the entire result set at once.
 
 
+!!! tip "Easily distinguish spatial resources"
+
+    Resources that have a spatial location have their icon colorized in green 
+
+
 ## OACS resources panel
 
 The OACS Resources panel is a dockable panel that tracks every OACS resource you have loaded onto the
@@ -93,6 +98,11 @@ Expanding any node fetches the corresponding data from the server on the fly. Se
 its metadata in the detail panel at the bottom of the dock.
 
 To load a related resource onto the map, select it and use the **Add to map** button in the detail panel.
+
+
+!!! tip "Easily distinguish spatial resources"
+
+    Resources that have a spatial location have their icon colorized in green 
 
 
 ## OACS observations panel

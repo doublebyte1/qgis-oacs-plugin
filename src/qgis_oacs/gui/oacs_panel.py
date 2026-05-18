@@ -2,18 +2,23 @@
 
 import uuid
 
-import qgis.core
 import qgis.gui
 from qgis.PyQt import (
     QtCore,
-    QtGui,
     QtWidgets,
 )
 
 from .. import models, utils
 from ..client import oacs_client, OacsRequestMetadata
-from ..constants import IconPath, LINK_REL_TO_ICON
-from ..registry import layer_registry, OacsLayerEntry
+from ..constants import (
+    IconPath,
+    LINK_REL_TO_ICON,
+    SPATIAL_COLOR,
+)
+from ..registry import (
+    layer_registry,
+    OacsLayerEntry,
+)
 from ..settings import settings_manager
 from .detail_panel import ResourceDetailPanel
 
@@ -139,7 +144,15 @@ class OacsResourcePanel(QtWidgets.QDockWidget):
             self, entry: OacsLayerEntry) -> QtWidgets.QTreeWidgetItem:
         item = QtWidgets.QTreeWidgetItem(
             [entry.layer_name, entry.get_type_label()], _LOADED_RESOURCE_TYPE)
-        item.setIcon(0, utils.create_icon_from_svg(entry.get_icon_path(), 16))
+        item.setIcon(
+            0,
+            utils.create_icon_from_svg(
+                entry.get_icon_path(),
+                16,
+                colorize_with=(
+                    SPATIAL_COLOR if entry.has_spatial_representation() else None)
+            )
+        )
         item.setData(0, _CONN_ID_ROLE, entry.connection_id)
         item.setData(0, _ENTRY_ROLE, entry)
         item.setData(0, _DETAILS_FETCHED_ROLE, False)
@@ -174,7 +187,18 @@ class OacsResourcePanel(QtWidgets.QDockWidget):
             [oacs_item.name, oacs_item.get_type_label()],
             _BROWSED_RESOURCE_TYPE
         )
-        item.setIcon(0, utils.create_icon_from_svg(oacs_item.get_icon_path(), 14))
+        icon_color = None
+        if isinstance(oacs_item, models.OacsFeature):
+            if oacs_item.geometry:
+                icon_color = SPATIAL_COLOR
+        item.setIcon(
+            0,
+            utils.create_icon_from_svg(
+                oacs_item.get_icon_path(),
+                14,
+                colorize_with=icon_color
+            )
+        )
         item.setData(0, _ITEM_DATA_ROLE, oacs_item)
         item.setData(0, _CONN_ID_ROLE, conn_id)
         item.setData(0, _DETAILS_FETCHED_ROLE, False)

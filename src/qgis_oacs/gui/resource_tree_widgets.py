@@ -14,9 +14,19 @@ from qgis.PyQt import (
     QtWidgets,
 )
 
-from .. import models, utils
-from ..client import oacs_client, OacsRequestMetadata
-from ..constants import IconPath, LINK_REL_TO_ICON
+from .. import (
+    models,
+    utils,
+)
+from ..client import (
+    oacs_client,
+    OacsRequestMetadata,
+)
+from ..constants import (
+    IconPath,
+    LINK_REL_TO_ICON,
+    SPATIAL_COLOR,
+)
 from ..settings import settings_manager
 from .abc import AbstractQWidgetMeta
 from .detail_panel import ResourceDetailPanel
@@ -339,7 +349,16 @@ class OacsResourceTreeWidgetBase(
         )
         tw_item.setData(0, _ITEM_DATA_ROLE, item)
         tw_item.setData(0, _DETAILS_FETCHED_ROLE, False)
-        tw_item.setIcon(0, utils.create_icon_from_svg(item.get_icon_path(), 16))
+        icon_color = None
+        if isinstance(item, models.OacsFeature):
+            if item.geometry:
+                icon_color = SPATIAL_COLOR
+        tw_item.setIcon(
+            0,
+            utils.create_icon_from_svg(
+                item.get_icon_path(), 16, colorize_with=icon_color
+            )
+        )
         if isinstance(item, models.OacsFeature):
             tw_item.setToolTip(0, item.uid)
         if self._items_have_relations:

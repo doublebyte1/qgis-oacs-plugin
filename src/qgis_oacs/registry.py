@@ -35,6 +35,13 @@ class OacsLayerEntry:
     def get_type_label(self) -> str:
         return self.resource_type
 
+    def get_layer(self) -> qgis.core.QgsMapLayer | None:
+        return qgis.core.QgsProject.instance().mapLayer(self.layer_id)
+
+    def has_spatial_representation(self) -> bool:
+        qgis_layer = self.get_layer()
+        return qgis_layer.isSpatial() if qgis_layer else False
+
     def get_icon_path(self) -> str:
         return {
             "System": IconPath.system_type_system,
