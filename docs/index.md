@@ -16,6 +16,8 @@ A [QGIS] plugin for working with [OGC API - Connected Systems] servers
 
 **Source code:** <https://github.com/byteroad/qgis-oacs-plugin>
 
+**Issues:** <https://github.com/byteroad/qgis-oacs-plugin/issues>
+
 ---
 
 This is a QGIS plugin to work with OACS servers. It allows you to discover and visualize datasets exposed as OCS

@@ -8,6 +8,8 @@ nav:
   - Development: "development.md"
   - Changelog: "changelog-base.md"
   - QGIS Repo: "repo/plugins.xml"
+  - Third-party credits: "third-party.md"
+  - Known OACS servers: "known-servers.md"
 
 theme:
   name: material
